@@ -61,6 +61,14 @@ struct NotchBackground: View {
     var body: some View {
         ZStack {
             Color.black
+            if expanded && theme == .auto {
+                // Auto: black around the hardware notch, fading into the wallpaper's own colour toward the bottom
+                // edge, so the open notch melts into the desktop below it.
+                LinearGradient(stops: [.init(color: AutoPalette.shared.surface.opacity(0), location: 0.12),
+                                       .init(color: AutoPalette.shared.surface.opacity(0.7), location: 0.62),
+                                       .init(color: AutoPalette.shared.surface.opacity(0.95), location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+            }
             if expanded {
                 RadialGradient(colors: [theme.accent.opacity(0.20), .clear], center: UnitPoint(x: 0.05, y: 1.05),
                                startRadius: 0, endRadius: 380)

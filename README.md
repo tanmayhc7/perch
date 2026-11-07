@@ -78,8 +78,9 @@ macOS doesn't let apps change Focus directly, so this goes through two small sho
 Perch remembers a running session, so quitting Perch, a crash or sleep can't leave Do Not Disturb stuck on.
 
 ### Themes
-**Auto** (the default) takes its colours from your wallpaper, so the glow, rings and buttons match your desktop.
-It picks the strongest colours in the strip of wallpaper behind the menu bar and brightens them to glow on black,
+**Auto** (the default) takes its colours from your wallpaper, so the open notch blends into your desktop: it stays
+black around the hardware notch and fades into the wallpaper's own colour toward its bottom edge, while the glow,
+rings and buttons take the wallpaper's strongest colours, brightened to glow on black. It looks at the strip of wallpaper behind the menu bar,
 and it follows you when you change wallpapers or switch to a Space with a different one. It reads the wallpaper file
 only, so it needs no Screen Recording permission. For a dynamic or aerial wallpaper with no picture file, it uses
 your Mac's accent colour.

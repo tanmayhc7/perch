@@ -10,6 +10,9 @@ final class AutoPalette {
 
     private(set) var accent = Color(red: 1.00, green: 0.55, blue: 0.32)
     private(set) var accent2 = Color(red: 1.00, green: 0.30, blue: 0.45)
+    /// The wallpaper's own colour just below the open notch (its average, kept dark enough for white text).
+    /// The open notch fades into it so it melts into the desktop.
+    private(set) var surface = Color(red: 0.16, green: 0.10, blue: 0.08)
 
     /// Whether the person picked a theme themselves (Auto included). Auto only reads a
     /// wallpaper kept in Desktop, Documents or Downloads when they chose it, because
@@ -48,11 +51,11 @@ final class AutoPalette {
         guard key != lastKey else { return }
         lastKey = key
         queue.async {
-            let pair = Self.palette(from: url)
+            let colors = Self.palette(from: url)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard let pair else { return self.useSystemAccent() }
-                    self.apply(pair.0, pair.1)
+                    guard let colors else { return self.useSystemAccent() }
+                    self.apply(colors)
                 }
             }
         }
@@ -63,29 +66,33 @@ final class AutoPalette {
         lastKey = "system"
         let c = NSColor.controlAccentColor.usingColorSpace(.deviceRGB) ?? .systemBlue
         let hsb = HSB(h: c.hueComponent, s: c.saturationComponent, b: c.brightnessComponent)
-        apply(Self.vivid(hsb), Self.vivid(HSB(h: (hsb.h + 0.08).truncatingRemainder(dividingBy: 1), s: hsb.s, b: hsb.b), second: true))
+        apply(Colors(a: Self.vivid(hsb), b: Self.vivid(HSB(h: (hsb.h + 0.08).truncatingRemainder(dividingBy: 1), s: hsb.s, b: hsb.b), second: true),
+                     surface: Self.surface(HSB(h: hsb.h, s: hsb.s * 0.6, b: 0.3))))
     }
 
-    private func apply(_ a: HSB, _ b: HSB) {
-        withAnimation(.easeInOut(duration: 0.9)) { set(a, b) }
+    private func apply(_ c: Colors) {
+        withAnimation(.easeInOut(duration: 0.9)) { set(c) }
     }
 
     /// Sets the colours directly (snapshots render from a sample wallpaper).
-    func set(_ a: HSB, _ b: HSB) {
-        accent = Color(hue: a.h, saturation: a.s, brightness: a.b)
-        accent2 = Color(hue: b.h, saturation: b.s, brightness: b.b)
+    func set(_ c: Colors) {
+        accent = Color(hue: c.a.h, saturation: c.a.s, brightness: c.a.b)
+        accent2 = Color(hue: c.b.h, saturation: c.b.s, brightness: c.b.b)
+        surface = Color(hue: c.surface.h, saturation: c.surface.s, brightness: c.surface.b)
     }
 
     /// Takes the colours from a picture, as `update()` does from the wallpaper. False if it has none to give.
     @discardableResult func set(from image: NSImage) -> Bool {
-        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil), let pair = Self.palette(from: cg) else { return false }
-        set(pair.0, pair.1)
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil), let c = Self.palette(from: cg) else { return false }
+        set(c)
         return true
     }
 
     // MARK: Colour extraction (pure, testable, runs off the main thread)
 
     struct HSB: Equatable { var h: Double; var s: Double; var b: Double }
+    /// Two accents and the surface colour.
+    struct Colors: Equatable { var a: HSB; var b: HSB; var surface: HSB }
 
     nonisolated static func isProtected(_ url: URL) -> Bool {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -93,7 +100,7 @@ final class AutoPalette {
         return protected.contains { url.path.hasPrefix($0) } || url.path.hasPrefix("/Volumes/")
     }
 
-    nonisolated static func palette(from url: URL) -> (HSB, HSB)? {
+    nonisolated static func palette(from url: URL) -> Colors? {
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
               let img = CGImageSourceCreateThumbnailAtIndex(src, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
                                                                       kCGImageSourceCreateThumbnailWithTransform: true,
@@ -104,7 +111,7 @@ final class AutoPalette {
 
     /// Dominant hues of the top-centre strip (where the menu bar and notch sit), falling
     /// back to the whole picture when that strip is grey.
-    nonisolated static func palette(from img: CGImage) -> (HSB, HSB)? {
+    nonisolated static func palette(from img: CGImage) -> Colors? {
         let w = img.width, h = img.height
         guard w > 0, h > 0 else { return nil }
         var px = [UInt8](repeating: 0, count: w * h * 4)
@@ -118,9 +125,30 @@ final class AutoPalette {
         guard drawn else { return nil }
         // Row 0 of the buffer is the top of the picture.
         let top = histogram(px, w: w, rows: 0..<max(1, h * 35 / 100), cols: (w * 20 / 100)..<max(w * 20 / 100 + 1, w * 80 / 100))
-        if let pair = pick(top) { return pair }
+        // The open notch reaches about a quarter to a third of the way down the screen: blend toward what's there.
+        let under = surface(average(px, w: w, rows: (h * 20 / 100)..<max(h * 20 / 100 + 1, h * 40 / 100),
+                                    cols: (w * 25 / 100)..<max(w * 25 / 100 + 1, w * 75 / 100)))
+        if let pair = pick(top) { return Colors(a: pair.0, b: pair.1, surface: under) }
         let all = histogram(px, w: w, rows: 0..<h, cols: 0..<w)
-        return pick(all) ?? neutral(all)
+        let pair = pick(all) ?? neutral(all)
+        return Colors(a: pair.0, b: pair.1, surface: under)
+    }
+
+    /// Mean colour of a region, as HSB.
+    nonisolated static func average(_ px: [UInt8], w: Int, rows: Range<Int>, cols: Range<Int>) -> HSB {
+        var r = 0.0, g = 0.0, b = 0.0, n = 0.0
+        for y in rows { for x in cols {
+            let i = (y * w + x) * 4
+            r += Double(px[i]); g += Double(px[i + 1]); b += Double(px[i + 2]); n += 1
+        } }
+        guard n > 0 else { return HSB(h: 0, s: 0, b: 0.2) }
+        let c = NSColor(srgbRed: r / n / 255, green: g / n / 255, blue: b / n / 255, alpha: 1)
+        return HSB(h: c.hueComponent, s: c.saturationComponent, b: c.brightnessComponent)
+    }
+
+    /// Dark enough that white text stays readable on it, with a little more colour so it reads as the wallpaper.
+    nonisolated static func surface(_ c: HSB) -> HSB {
+        HSB(h: c.h, s: min(c.s * 1.1, 0.75), b: min(max(c.b * 0.62, 0.16), 0.46))
     }
 
     struct Histogram { var weight = [Double](repeating: 0, count: 36); var s = [Double](repeating: 0, count: 36)
