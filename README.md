@@ -9,6 +9,9 @@ Your MacBook's notch, turned into a live Claude Code dashboard,<br>
 a Spotify remote, an AirDrop and file shelf, and a one-line Claude prompt.
 </p>
 
+<p align="center"><a href="docs/media/perch.mp4"><img src="docs/media/perch.gif" width="860" alt="Perch in 23 seconds: the notch lights up while Claude responds, springs open into a dashboard of tokens, burn rate and budget, slides out a budget alert, answers a question typed into the Ask Claude bar, and takes a dropped file for AirDrop or the shelf"></a><br>
+<sub>▶ <a href="docs/media/perch.mp4">Watch with sound</a> (23 s)</sub></p>
+
 <p align="center"><img src="docs/images/expanded-ember.png" width="860" alt="Perch open: Claude Code usage with a budget ring, Spotify now playing, the next meeting with a Join button, a focus timer and an Ask Claude bar"></p>
 
 Perch sits in the notch and stays out of the way. Point at the notch and it springs open. While a Claude Code

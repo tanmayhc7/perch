@@ -39,6 +39,50 @@ enum Snapshots {
         print("Wrote snapshots to \(dir.path)")
     }
 
+    /// Just the notch on a transparent background at 3x, one PNG per state, for compositing
+    /// into videos. `Perch --snapshot-bare <dir>`.
+    static func renderBare(to dir: URL) {
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let states: [(String, Theme, (AppEnvironment) -> Void)] = [
+            ("idle", .ember, { env in env.claude.stats = ClaudeStats(); env.calendar.next = nil }),
+            ("responding", .ember, { env in env.calendar.next = nil }),
+            ("toast-budget", .ember, { env in
+                env.calendar.next = nil
+                env.state.toast = Toast(symbol: "gauge.with.dots.needle.67percent", tint: .warning, title: "80% of your Claude budget used",
+                                        subtitle: "4M in 5h · 1M left")
+            }),
+            ("drag-hint", .ember, { env in env.claude.stats = ClaudeStats(); env.calendar.next = nil; env.state.dragHint = true }),
+            ("expanded", .ember, { env in env.state.mode = .expanded }),
+            ("expanded-aurora", .aurora, { env in env.state.mode = .expanded }),
+            ("expanded-graphite", .graphite, { env in env.state.mode = .expanded }),
+            ("typed", .ember, { env in env.state.mode = .expanded; env.prompt.text = "What's the zsh one-liner to find files over 100MB?" }),
+            ("answer", .ember, { env in
+                env.state.mode = .expanded
+                env.prompt.asked = "What's the zsh one-liner to find files over 100MB?"
+                env.prompt.answer = "Use `find` with a size filter:\n\n`find . -type f -size +100M -exec ls -lh {} +`\n\nAdd `2>/dev/null` to hide permission errors."
+                env.prompt.phase = .done
+                env.prompt.costUSD = 0.0012
+            }),
+            ("drop", .ember, { env in env.state.mode = .expanded; env.state.dropMode = true }),
+            ("shelf", .ember, { env in
+                env.state.mode = .expanded
+                env.shelf.add([URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"),
+                               URL(fileURLWithPath: "/Library/Desktop Pictures"), URL(fileURLWithPath: "/etc/hosts")])
+            }),
+        ]
+        for (name, theme, setup) in states {
+            let env = sampleEnv(theme: theme)
+            setup(env)
+            let view = NotchRootView().notchEnvironment(env).environment(\.snapshotMode, true).frame(width: 820, height: 330)
+            let r = ImageRenderer(content: view)
+            r.scale = 3
+            guard let img = r.nsImage, let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+                  let png = rep.representation(using: .png, properties: [:]) else { continue }
+            try? png.write(to: dir.appendingPathComponent("\(name).png"))
+        }
+        print("Wrote bare snapshots to \(dir.path)")
+    }
+
     private static func sampleEnv(theme: Theme) -> AppEnvironment {
         let settings = AppSettings(persist: false)
         settings.theme = theme
