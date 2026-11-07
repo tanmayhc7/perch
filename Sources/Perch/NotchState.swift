@@ -15,7 +15,9 @@ struct NotchGeometry: Equatable {
     static let sample = NotchGeometry(width: 185, height: 32, hasNotch: true, midX: 640, top: 832)
 
     static func detect() -> (screen: NSScreen?, geometry: NotchGeometry) {
-        let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? NSScreen.screens.first
+        // The built-in display's notch if there is one; otherwise the primary display (the one with the
+        // menu bar). Not `NSScreen.main`: that follows keyboard focus from screen to screen.
+        let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.screens.first
         guard let screen else { return (nil, .sample) }
         let f = screen.frame
         if screen.safeAreaInsets.top > 0, let l = screen.auxiliaryTopLeftArea, let r = screen.auxiliaryTopRightArea {
@@ -71,7 +73,9 @@ final class NotchState {
     var isExpanded: Bool { mode == .expanded }
 
     func push(_ t: Toast) {
-        if toast == nil { show(t) } else { queue.append(t) }
+        // A burst (several sessions finishing at once) shouldn't keep the notch talking for a minute.
+        if toast?.title == t.title || queue.contains(where: { $0.title == t.title }) { return }
+        if toast == nil { show(t) } else if queue.count < 3 { queue.append(t) }
     }
 
     private func show(_ t: Toast) {
@@ -131,20 +135,28 @@ final class AppSettings {
     var promptModel: String { didSet { d.set(promptModel, forKey: "promptModel") } }
     var launchAtLogin: Bool {
         didSet {
+            guard !syncingLogin, persist else { return }
             do {
                 if launchAtLogin { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             } catch { NSLog("Perch: launch at login: \(error)") }
+            // Registration can fail (an app run from Downloads or a translocated copy): show the real state.
+            let actual = SMAppService.mainApp.status == .enabled
+            if actual != launchAtLogin { syncingLogin = true; launchAtLogin = actual; syncingLogin = false }
         }
     }
+    @ObservationIgnored private var syncingLogin = false
+    private let persist: Bool
 
     /// `persist: false` (snapshots) keeps changes in memory only.
     init(persist: Bool = true) {
+        self.persist = persist
         d = persist ? .standard : UserDefaults(suiteName: "perch.snapshots")!
         d.register(defaults: ["theme": Theme.ember.rawValue, "hoverToExpand": true, "finishAlerts": true, "promptModel": "haiku"])
         theme = Theme(rawValue: d.string(forKey: "theme") ?? "") ?? .ember
         hoverToExpand = d.bool(forKey: "hoverToExpand")
         finishAlerts = d.bool(forKey: "finishAlerts")
-        promptModel = d.string(forKey: "promptModel") ?? "haiku"
+        let model = d.string(forKey: "promptModel") ?? "haiku"
+        promptModel = PromptModel.models.contains { $0.id == model } ? model : "haiku"
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 }

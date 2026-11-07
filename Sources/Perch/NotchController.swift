@@ -1,4 +1,5 @@
 import AppKit
+import LedgerKit
 import SwiftUI
 
 /// A borderless panel that can take keyboard focus (for the prompt) without activating the app.
@@ -49,6 +50,17 @@ final class NotchController {
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.place() }
         }
+        // After sleep: re-place, close a notch that was left open, and refresh everything.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.place()
+                if self.env.state.isExpanded { self.collapse(restoreFocus: false) }
+                self.env.state.dragHint = false
+                self.env.claude.refresh()
+                self.env.calendar.reload()
+            }
+        }
         installMonitors()
         observeState()
         if ProcessInfo.processInfo.environment["PERCH_DEBUG"] == "1" { installDebugHooks() }
@@ -64,6 +76,10 @@ final class NotchController {
                 switch cmd {
                 case "expand": self.expand(); self.env.state.pinned = true
                 case "collapse": self.collapse()
+                case "cancel": self.env.prompt.cancel()
+                case "state":
+                    let p = self.env.prompt
+                    NSLog("Perch state: phase=\(p.phase) asked=\(p.asked.prefix(40)) answer=\(p.answer.prefix(120).replacingOccurrences(of: "\n", with: " ")) toast=\(self.env.state.toast?.title ?? "-") spotify=\(self.env.spotify.running)/\(self.env.spotify.title) claude=\(self.env.claude.loaded)/\(TokenFormat.short(self.env.claude.stats.windowTokens))/\(self.env.claude.stats.windowText)")
                 case "loading": self.env.claude.loaded = false; self.env.spotify.loaded = false; self.expand(); self.env.state.pinned = true
                 case "draghint": self.env.state.dragHint.toggle()
                 case "drop": self.expand(); self.env.state.pinned = true; self.env.state.dropMode = true
@@ -89,6 +105,8 @@ final class NotchController {
         env.state.geometry = g
         let size = Self.windowSize
         panel.setFrame(NSRect(x: g.midX - size.width / 2, y: g.top - size.height, width: size.width, height: size.height), display: true)
+        // Display changes (wake, a monitor plugged in or out) can leave the panel off screen or behind.
+        panel.orderFrontRegardless()
     }
 
     // MARK: Mouse
@@ -170,6 +188,7 @@ final class NotchController {
         env.state.dismissToast()
         panel.ignoresMouseEvents = false
         let t1 = CFAbsoluteTimeGetCurrent()
+        env.shelf.pruneMissing()
         if env.spotify.running { env.spotify.refresh() }
         env.claude.refresh()
         // EventKit queries can take a while; run them after the first frame is on screen.
@@ -183,16 +202,20 @@ final class NotchController {
         }
     }
 
-    func collapse() {
+    func collapse() { collapse(restoreFocus: true) }
+
+    /// `restoreFocus`: hand the keyboard back to the app that had it before the prompt.
+    /// Not after a click somewhere else: that click already chose where focus goes.
+    func collapse(restoreFocus: Bool) {
         env.state.mode = .collapsed
         env.state.pinned = false
         env.state.dropMode = false
         if panel.isKeyWindow {
             panel.makeFirstResponder(nil)
             panel.resignKey()
-            previousApp?.activate()
-            previousApp = nil
+            if restoreFocus { previousApp?.activate() }
         }
+        previousApp = nil
         panel.ignoresMouseEvents = !activeRect(slack: 2).contains(NSEvent.mouseLocation)
     }
 
@@ -208,7 +231,7 @@ final class NotchController {
         guard env.state.isExpanded else { return }
         if !activeRect(slack: 14).contains(NSEvent.mouseLocation) {
             env.state.pinned = false
-            collapse()
+            collapse(restoreFocus: false)
         }
     }
 

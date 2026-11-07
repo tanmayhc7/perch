@@ -30,8 +30,11 @@ final class PromptModel {
         p.standardOutput = out
         p.standardError = FileHandle.nullDevice
         p.standardInput = FileHandle.nullDevice
-        try? p.run()
-        p.waitUntilExit()
+        guard (try? p.run()) != nil else { return nil }
+        // A login shell can hang (a .zshrc that waits on something); give up after 5 seconds.
+        let deadline = Date().addingTimeInterval(5)
+        while p.isRunning, Date() < deadline { usleep(20_000) }
+        if p.isRunning { p.terminate(); return nil }
         let s = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
             .split(separator: "\n").last.map(String.init)?.trimmingCharacters(in: .whitespaces)
         return s.flatMap { FileManager.default.isExecutableFile(atPath: $0) ? $0 : nil }
@@ -60,34 +63,53 @@ final class PromptModel {
         }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
-        p.arguments = ["-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
+        // The question goes in on stdin, never as an argument: "--help" or "-v" typed into
+        // the notch must be a question, not a flag.
+        let model = Self.models.contains { $0.id == model } ? model : "haiku"
+        p.arguments = ["-p", "--model", model, "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
         p.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
         var env = ProcessInfo.processInfo.environment
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         env["PATH"] = ["/opt/homebrew/bin", "/usr/local/bin", "\(home)/.local/bin", "/usr/bin", "/bin", env["PATH"] ?? ""].joined(separator: ":")
         p.environment = env
-        p.standardInput = FileHandle.nullDevice
+        let input = Pipe()
         let out = Pipe()
         let err = Pipe()
+        p.standardInput = input
         p.standardOutput = out
         p.standardError = err
         buffer = Data()
+        // Each run reads only into its own state, so a cancelled run's last bytes can't
+        // land in the next answer.
+        let stderrBox = ErrBox()
         out.fileHandleForReading.readabilityHandler = { [weak self] h in
             let d = h.availableData
-            DispatchQueue.main.async { MainActor.assumeIsolated { self?.consume(d) } }
+            // EOF: stop, or the handler fires again and again with nothing.
+            if d.isEmpty { h.readabilityHandler = nil; return }
+            DispatchQueue.main.async { MainActor.assumeIsolated { if self?.process === p { self?.consume(d) } } }
+        }
+        // Drain stderr while the process runs: a full pipe would block it forever.
+        err.fileHandleForReading.readabilityHandler = { h in
+            let d = h.availableData
+            if d.isEmpty { h.readabilityHandler = nil; return }
+            stderrBox.append(d)
         }
         p.terminationHandler = { [weak self] proc in
-            let e = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            let e = stderrBox.text
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, self.process === proc else { return }
+                    // Whatever is still in the pipe, then a last line with no newline.
+                    if let rest = try? out.fileHandleForReading.readToEnd() { self.consume(rest) }
                     out.fileHandleForReading.readabilityHandler = nil
+                    self.consume(Data([0x0A]))
                     self.process = nil
                     if self.phase == .running {
                         if proc.terminationStatus == 0 || !self.answer.isEmpty {
                             self.phase = .done
                         } else {
-                            self.phase = .failed(e.isEmpty ? "claude exited with status \(proc.terminationStatus)" : String(e.prefix(300)))
+                            let msg = e.trimmingCharacters(in: .whitespacesAndNewlines)
+                            self.phase = .failed(msg.isEmpty ? "claude exited with status \(proc.terminationStatus)" : String(msg.prefix(300)))
                         }
                     }
                 }
@@ -96,7 +118,14 @@ final class PromptModel {
         do {
             try p.run()
             process = p
+            let h = input.fileHandleForWriting
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? h.write(contentsOf: Data(prompt.utf8))
+                try? h.close()
+            }
         } catch {
+            out.fileHandleForReading.readabilityHandler = nil
+            err.fileHandleForReading.readabilityHandler = nil
             phase = .failed(error.localizedDescription)
         }
     }
@@ -107,9 +136,11 @@ final class PromptModel {
         while let nl = buffer.firstIndex(of: 0x0A) {
             let line = buffer[buffer.startIndex..<nl]
             buffer.removeSubrange(buffer.startIndex...nl)
-            guard let obj = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
+            guard !line.isEmpty, let obj = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
             handle(obj)
         }
+        // A runaway line with no newline: don't let it grow without bound.
+        if buffer.count > 8 << 20 { buffer.removeAll() }
     }
 
     private func handle(_ o: [String: Any]) {
@@ -130,6 +161,7 @@ final class PromptModel {
 
     func cancel() {
         process?.terminate()
+        buffer = Data()
         process = nil
         if phase == .running { phase = .idle }
     }
@@ -140,4 +172,12 @@ final class PromptModel {
         answer = ""
         phase = .idle
     }
+}
+
+/// Collects stderr from a background thread, capped at 64 KB.
+private final class ErrBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    func append(_ d: Data) { lock.lock(); if data.count < 64 << 10 { data.append(d) }; lock.unlock() }
+    var text: String { lock.lock(); defer { lock.unlock() }; return String(decoding: data, as: UTF8.self) }
 }

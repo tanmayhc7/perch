@@ -37,7 +37,12 @@ final class ClaudeModel {
     }
     @ObservationIgnored private var tick = 0
 
+    /// A read is under way; skip ticks until it finishes so slow disks can't pile reads up.
+    @ObservationIgnored private var reading = false
+
     func refresh() {
+        guard !reading else { return }
+        reading = true
         let dir = self.dir
         queue.async {
             let now = Date()
@@ -49,6 +54,7 @@ final class ClaudeModel {
             let s = ClaudeStats.compute(sessions: files, budget: budget, now: now)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
+                    self.reading = false
                     self.ledgerFound = found
                     if !self.loaded { self.loaded = true }
                     if s != self.stats { self.stats = s }
@@ -70,7 +76,7 @@ final class ClaudeModel {
                         onAlert?(Toast(symbol: pct == 100 ? "exclamationmark.octagon.fill" : "gauge.with.dots.needle.67percent",
                                        tint: tint,
                                        title: pct == 100 ? "Claude budget used up" : "80% of your Claude budget used",
-                                       subtitle: "\(TokenFormat.short(s.windowTokens)) in \(Int(s.windowHours))h · \(s.budgetRemainingText ?? "")",
+                                       subtitle: "\(TokenFormat.short(s.windowTokens)) in \(s.windowText) · \(s.budgetRemainingText ?? "")",
                                        seconds: 8))
                     }
                 }
@@ -83,7 +89,7 @@ final class ClaudeModel {
         if s.burnPerMinute >= Ledger.burnWarnPerMinute, now.timeIntervalSince(lastBurnAlert) > 15 * 60 {
             lastBurnAlert = now
             var sub = "A lighter model (/model sonnet) costs much less"
-            if let m = s.minutesToBudget { sub = "Budget gone in ~\(Int(m.rounded())) min at this rate" }
+            if let m = s.minutesToBudget { sub = "Budget gone in ~\(max(1, Int(m.rounded()))) min at this rate" }
             onAlert?(Toast(symbol: "flame.fill", tint: .warning,
                            title: "Burning \(TokenFormat.short(s.burnPerMinute)) tokens/min", subtitle: sub, seconds: 8))
         }

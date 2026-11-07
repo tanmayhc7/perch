@@ -4,11 +4,27 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controller: NotchController?
+    private var env: AppEnvironment?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // One Perch at a time: a second copy (opened twice, or login item plus a manual launch)
+        // would stack a second notch on top of the first.
+        let me = NSRunningApplication.current
+        if let id = Bundle.main.bundleIdentifier,
+           NSRunningApplication.runningApplications(withBundleIdentifier: id).contains(where: { $0.processIdentifier != me.processIdentifier }) {
+            NSLog("Perch is already running; quitting this copy")
+            NSApp.terminate(nil)
+            return
+        }
         let env = AppEnvironment.live()
+        self.env = env
         controller = NotchController(env: env)
         controller?.show()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // Don't leave a `claude -p` running with nobody to read it.
+        env?.prompt.cancel()
     }
 }
 
@@ -33,6 +49,7 @@ struct AppEnvironment {
         env.claude.finishAlertsEnabled = { settings.finishAlerts }
         env.calendar.onAlert = { [weak state] t in state?.push(t) }
         env.timer.onAlert = { [weak state] t in state?.push(t) }
+        ShelfModel.onProblem = { [weak state] t in state?.push(t) }
         env.claude.start()
         env.spotify.start()
         env.calendar.start()
