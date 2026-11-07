@@ -14,7 +14,7 @@ final class ClaudeModel {
     @ObservationIgnored var finishAlertsEnabled: () -> Bool = { true }
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private let dir = Ledger.defaultDirectory
-    @ObservationIgnored private let queue = DispatchQueue(label: "claude-notch.ledger", qos: .utility)
+    @ObservationIgnored private let queue = DispatchQueue(label: "perch.ledger", qos: .utility)
 
     // Alert bookkeeping.
     @ObservationIgnored private var firedBudget: Set<Int> = []

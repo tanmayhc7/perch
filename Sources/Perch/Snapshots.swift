@@ -3,7 +3,7 @@ import LedgerKit
 import SwiftUI
 
 /// Renders the notch in its main states from sample data, for the README and design reviews.
-/// `ClaudeNotch --snapshot <dir>`; needs no permissions and touches no real data.
+/// `Perch --snapshot <dir>`; needs no permissions and touches no real data.
 @MainActor
 enum Snapshots {
     static func render(to dir: URL) {
@@ -51,7 +51,7 @@ enum Snapshots {
         }
         let a = LedgerSession(id: "a", cwd: "/Users/me/code/token-meter", updatedAt: now, streaming: 3_400,
                               reqs: (0..<40).map { req(Double($0) * 0.7, Double(12_000 + ($0 * 3_700) % 21_000)) })
-        let b = LedgerSession(id: "b", cwd: "/Users/me/code/claude-notch", updatedAt: now.addingTimeInterval(-30), streaming: 0,
+        let b = LedgerSession(id: "b", cwd: "/Users/me/code/perch", updatedAt: now.addingTimeInterval(-30), streaming: 0,
                               reqs: (0..<30).map { req(Double($0) * 4 + 3, 26_000) })
         let c = LedgerSession(id: "c", cwd: "/Users/me/code/website", updatedAt: now.addingTimeInterval(-3600), streaming: 0,
                               reqs: (0..<20).map { req(Double($0) * 6 + 120, 30_000) })
@@ -135,7 +135,7 @@ private struct MenuBarStrip: View {
     }
 }
 
-/// The app icon: the spark on a black squircle with an ember halo. `ClaudeNotch --icon <dir.iconset>`.
+/// The app icon: the spark on a black squircle with an ember halo. `Perch --icon <dir.iconset>`.
 @MainActor
 enum IconRenderer {
     static func render(to dir: URL) {

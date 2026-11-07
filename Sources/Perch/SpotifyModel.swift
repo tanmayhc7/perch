@@ -28,7 +28,7 @@ final class SpotifyModel {
 
     @ObservationIgnored private var artworkURL = ""
     @ObservationIgnored private var timer: Timer?
-    @ObservationIgnored private let queue = DispatchQueue(label: "claude-notch.spotify", qos: .userInitiated)
+    @ObservationIgnored private let queue = DispatchQueue(label: "perch.spotify", qos: .userInitiated)
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     func position(at date: Date) -> Double {
@@ -139,7 +139,7 @@ final class SpotifyModel {
             let result = NSAppleScript(source: source)?.executeAndReturnError(&err)
             let denied = (err?[NSAppleScript.errorNumber] as? Int) == -1743
             let out = result?.stringValue
-            if let err { NSLog("claude-notch: Spotify script error \(err[NSAppleScript.errorNumber] ?? "?"): \(err[NSAppleScript.errorMessage] ?? "")") }
+            if let err { NSLog("Perch: Spotify script error \(err[NSAppleScript.errorNumber] ?? "?"): \(err[NSAppleScript.errorMessage] ?? "")") }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self.permissionDenied = denied

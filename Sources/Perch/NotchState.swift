@@ -133,13 +133,13 @@ final class AppSettings {
         didSet {
             do {
                 if launchAtLogin { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
-            } catch { NSLog("claude-notch: launch at login: \(error)") }
+            } catch { NSLog("Perch: launch at login: \(error)") }
         }
     }
 
     /// `persist: false` (snapshots) keeps changes in memory only.
     init(persist: Bool = true) {
-        d = persist ? .standard : UserDefaults(suiteName: "claude-notch.snapshots")!
+        d = persist ? .standard : UserDefaults(suiteName: "perch.snapshots")!
         d.register(defaults: ["theme": Theme.ember.rawValue, "hoverToExpand": true, "finishAlerts": true, "promptModel": "haiku"])
         theme = Theme(rawValue: d.string(forKey: "theme") ?? "") ?? .ember
         hoverToExpand = d.bool(forKey: "hoverToExpand")

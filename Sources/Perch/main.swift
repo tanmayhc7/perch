@@ -1,6 +1,6 @@
 import AppKit
 
-// `ClaudeNotch --snapshot <dir>` renders the README screenshots from sample data and exits.
+// `Perch --snapshot <dir>` renders the README screenshots from sample data and exits.
 let args = CommandLine.arguments
 if let i = args.firstIndex(of: "--snapshot") {
     let dir = i + 1 < args.count ? args[i + 1] : "docs/images"

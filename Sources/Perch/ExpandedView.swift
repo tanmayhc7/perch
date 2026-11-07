@@ -72,7 +72,7 @@ struct HeaderRow: View {
                     Text("\(claude.stats.responding.count) responding")
                         .font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
                 } else {
-                    Text("claude·notch").font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.6))
+                    Text("perch").font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.6))
                 }
                 Spacer(minLength: 0)
             }
@@ -110,8 +110,8 @@ struct SettingsMenu: View {
             Toggle("Alert when a session finishes", isOn: $s.finishAlerts)
             Toggle("Open at login", isOn: $s.launchAtLogin)
             Divider()
-            Button("claude-notch on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/tanmayhc7/claude-notch")!) }
-            Button("Quit claude-notch") { NSApp.terminate(nil) }
+            Button("Perch on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/tanmayhc7/perch")!) }
+            Button("Quit Perch") { NSApp.terminate(nil) }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 12, weight: .bold))
@@ -330,7 +330,7 @@ struct MusicTile: View {
     private var statusText: String {
         if !spotify.installed { return "Spotify isn't installed" }
         if !spotify.running { return "Spotify is closed" }
-        if spotify.permissionDenied { return "Allow claude-notch to control Spotify" }
+        if spotify.permissionDenied { return "Allow Perch to control Spotify" }
         return "Nothing playing"
     }
 

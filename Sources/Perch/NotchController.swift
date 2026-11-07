@@ -51,16 +51,16 @@ final class NotchController {
         }
         installMonitors()
         observeState()
-        if ProcessInfo.processInfo.environment["CLAUDE_NOTCH_DEBUG"] == "1" { installDebugHooks() }
+        if ProcessInfo.processInfo.environment["PERCH_DEBUG"] == "1" { installDebugHooks() }
     }
 
-    /// Development only (CLAUDE_NOTCH_DEBUG=1): drive the live notch and capture it without
+    /// Development only (PERCH_DEBUG=1): drive the live notch and capture it without
     /// Screen Recording permission. `object` is "expand", "collapse", "drop", "toast", "ask:<question>" or "shot:<path.png>".
     private func installDebugHooks() {
-        DistributedNotificationCenter.default().addObserver(forName: Notification.Name("claude-notch.debug"), object: nil, queue: .main) { [weak self] n in
+        DistributedNotificationCenter.default().addObserver(forName: Notification.Name("perch.debug"), object: nil, queue: .main) { [weak self] n in
             MainActor.assumeIsolated {
                 guard let self, let cmd = n.object as? String else { return }
-                NSLog("claude-notch debug: \(cmd) (mode \(self.env.state.mode))")
+                NSLog("Perch debug: \(cmd) (mode \(self.env.state.mode))")
                 switch cmd {
                 case "expand": self.expand(); self.env.state.pinned = true
                 case "collapse": self.collapse()
@@ -160,7 +160,7 @@ final class NotchController {
         if !activeRect(slack: 14).contains(NSEvent.mouseLocation) { collapse() }
     }
 
-    private let debug = ProcessInfo.processInfo.environment["CLAUDE_NOTCH_DEBUG"] == "1"
+    private let debug = ProcessInfo.processInfo.environment["PERCH_DEBUG"] == "1"
 
     func expand() {
         guard !env.state.isExpanded else { return }
