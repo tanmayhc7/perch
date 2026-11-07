@@ -3,7 +3,7 @@ import SwiftUI
 
 extension Animation {
     /// The notch's one spring: quick to open, settles without wobbling for long.
-    static let notch = Animation.spring(response: 0.42, dampingFraction: 0.78, blendDuration: 0.1)
+    static let notch = Animation.spring(response: 0.32, dampingFraction: 0.8, blendDuration: 0.05)
 }
 
 struct NotchRootView: View {
@@ -28,7 +28,7 @@ struct NotchRootView: View {
                 if expanded {
                     ExpandedView()
                         .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top)).animation(.notch.delay(0.06)),
+                            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)).animation(.easeOut(duration: 0.2)),
                             removal: .opacity.animation(.easeOut(duration: 0.12))))
                 } else {
                     CollapsedView()

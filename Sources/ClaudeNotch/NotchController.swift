@@ -142,6 +142,7 @@ final class NotchController {
             }
         } else if env.settings.hoverToExpand, notchRect.contains(loc) || (st.toast != nil && inside) {
             if hoverWork == nil {
+                if debug { NSLog("timing hover: entered notch") }
                 let w = DispatchWorkItem { [weak self] in
                     MainActor.assumeIsolated {
                         guard let self else { return }
@@ -152,7 +153,8 @@ final class NotchController {
                     }
                 }
                 hoverWork = w
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: w)
+                // Just long enough that sweeping the cursor across the top of the screen doesn't open it.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.04, execute: w)
             }
         } else {
             hoverWork?.cancel(); hoverWork = nil
@@ -166,14 +168,26 @@ final class NotchController {
         if !activeRect(slack: 14).contains(NSEvent.mouseLocation) { collapse() }
     }
 
+    private let debug = ProcessInfo.processInfo.environment["CLAUDE_NOTCH_DEBUG"] == "1"
+
     func expand() {
         guard !env.state.isExpanded else { return }
+        let t0 = CFAbsoluteTimeGetCurrent()
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
         env.state.mode = .expanded
         env.state.dismissToast()
         panel.ignoresMouseEvents = false
+        let t1 = CFAbsoluteTimeGetCurrent()
         if env.spotify.running { env.spotify.refresh() }
-        env.calendar.reload()
+        // EventKit queries can take a while; run them after the first frame is on screen.
+        DispatchQueue.main.async { [env] in env.calendar.reload() }
+        let t2 = CFAbsoluteTimeGetCurrent()
+        if debug {
+            panel.contentView?.layoutSubtreeIfNeeded()
+            panel.displayIfNeeded()
+            let t3 = CFAbsoluteTimeGetCurrent()
+            NSLog("timing expand: state %.1fms, refresh %.1fms, first layout+draw %.1fms", (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000)
+        }
     }
 
     func collapse() {
