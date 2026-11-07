@@ -8,6 +8,11 @@ if let i = args.firstIndex(of: "--snapshot") {
     exit(0)
 }
 
+if let i = args.firstIndex(of: "--snapshot-bare"), i + 1 < args.count {
+    MainActor.assumeIsolated { Snapshots.renderBare(to: URL(fileURLWithPath: args[i + 1])) }
+    exit(0)
+}
+
 if let i = args.firstIndex(of: "--icon"), i + 1 < args.count {
     MainActor.assumeIsolated { IconRenderer.render(to: URL(fileURLWithPath: args[i + 1])) }
     exit(0)

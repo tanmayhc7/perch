@@ -453,7 +453,8 @@ struct PromptBar: View {
         HStack(spacing: 10) {
             Spark(theme: theme, spinning: prompt.phase == .running).frame(width: 14, height: 14)
             if snapshot {
-                Text("Ask Claude anything…").font(.system(size: 13)).foregroundStyle(.white.opacity(0.35))
+                Text(prompt.text.isEmpty ? "Ask Claude anything…" : prompt.text).font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(prompt.text.isEmpty ? 0.35 : 0.95))
                 Spacer()
             } else {
                 TextField("Ask Claude anything…", text: $p.text)
