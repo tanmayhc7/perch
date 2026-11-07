@@ -60,6 +60,7 @@ struct AppEnvironment {
         env.timer.onBegan = { [weak focus = env.focus] end in focus?.begin(endsAt: end) }
         env.timer.onEnded = { [weak focus = env.focus] in focus?.finish() }
         env.focus.start()
+        introduceAutoTheme(settings: settings, state: state)
         AutoPalette.shared.isActive = { settings.theme == .auto }
         AutoPalette.shared.explicitlyChosen = { settings.themeChosen }
         AutoPalette.shared.start()
@@ -67,6 +68,19 @@ struct AppEnvironment {
         env.media.start()
         env.calendar.start()
         return env
+    }
+}
+
+/// People who picked a theme before Auto existed keep it, so they'd never see Auto. Tell them once.
+@MainActor private func introduceAutoTheme(settings: AppSettings, state: NotchState) {
+    let d = UserDefaults.standard
+    guard settings.theme != .auto, !d.bool(forKey: "autoThemeIntroduced") else { return }
+    d.set(true, forKey: "autoThemeIntroduced")
+    // A few seconds in, so it doesn't fight the launch.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak settings, weak state] in
+        state?.push(Toast(symbol: "paintpalette.fill", tint: .accent, title: "New: Auto theme",
+                          subtitle: "Perch can take its colours from your wallpaper", actionTitle: "Try it",
+                          action: { settings?.theme = .auto }, seconds: 12))
     }
 }
 
