@@ -251,64 +251,128 @@ struct ClaudeTile: View {
     }
 }
 
+/// Spotify and Apple Music share one tile: swipe sideways (or click the dots) to switch.
+/// It turns to whichever app starts playing.
 struct MusicTile: View {
-    @Environment(SpotifyModel.self) private var spotify
+    @Environment(MediaHub.self) private var media
+    @Environment(\.snapshotMode) private var snapshot
+
+    var body: some View {
+        let pages = media.visible
+        Tile(padding: 0) {
+            ZStack(alignment: .topTrailing) {
+                if snapshot || pages.count < 2 {
+                    PlayerPage(player: media.selected, paged: pages.count > 1)
+                } else {
+                    ScrollView(.horizontal) {
+                        LazyHStack(spacing: 0) {
+                            ForEach(pages) { p in
+                                PlayerPage(player: p, paged: true)
+                                    .containerRelativeFrame(.horizontal)
+                                    .id(p.id)
+                            }
+                        }
+                        .scrollTargetLayout()
+                    }
+                    .scrollTargetBehavior(.paging)
+                    .scrollIndicators(.never)
+                    .scrollPosition(id: Binding<String?>(get: { media.selectedID }, set: { if let v = $0 { media.selectedID = v } }))
+                }
+                if pages.count > 1 {
+                    PageDots(pages: pages, selected: media.selected.id) { id in
+                        withAnimation(.notch) { media.selectedID = id }
+                    }
+                    .padding(.top, 9).padding(.trailing, 10)
+                }
+            }
+        }
+    }
+}
+
+/// Which music app the tile shows. Click a dot to jump to it.
+private struct PageDots: View {
+    var pages: [PlayerModel]
+    var selected: String
+    var pick: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(pages) { p in
+                Capsule()
+                    .fill(.white.opacity(p.id == selected ? 0.85 : 0.25))
+                    .frame(width: p.id == selected ? 12 : 5, height: 5)
+                    .contentShape(Rectangle().inset(by: -4))
+                    .onTapGesture { pick(p.id) }
+                    .help(p.source.name)
+            }
+        }
+        .animation(.notch, value: selected)
+        .help("Swipe sideways to switch between Spotify and Apple Music")
+    }
+}
+
+/// One music app's page in the tile.
+struct PlayerPage: View {
+    let player: PlayerModel
+    /// More than one page: leave room for the dots.
+    var paged = false
     @Environment(AppSettings.self) private var settings
 
     var body: some View {
         let theme = settings.theme
-        Tile(padding: 12) {
-            if spotify.running && !spotify.loaded {
-                LoadingPlaceholder(caption: "Loading Spotify…", theme: theme)
-            } else if spotify.hasTrack {
+        Group {
+            if player.running && !player.loaded {
+                LoadingPlaceholder(caption: "Loading \(player.source.name)…", theme: theme)
+            } else if player.hasTrack {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 10) {
                         artwork.frame(width: 54, height: 54)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(spotify.title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(2)
+                            Text(player.title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text(spotify.artist).font(.system(size: 11)).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
+                            Text(player.artist).font(.system(size: 11)).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
                         }
+                        .padding(.trailing, paged ? 16 : 0)
                         Spacer(minLength: 0)
                     }
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                        let pos = spotify.position(at: ctx.date)
+                        let pos = player.position(at: ctx.date)
                         VStack(spacing: 3) {
                             GeometryReader { geo in
                                 ZStack(alignment: .leading) {
                                     Capsule().fill(.white.opacity(0.12))
                                     Capsule().fill(theme.gradient)
-                                        .frame(width: geo.size.width * (spotify.duration > 0 ? pos / spotify.duration : 0))
+                                        .frame(width: geo.size.width * (player.duration > 0 ? pos / player.duration : 0))
                                 }
                             }
                             .frame(height: 3)
                             HStack {
                                 Text(FocusTimer.format(pos))
                                 Spacer()
-                                Text(FocusTimer.format(spotify.duration))
+                                Text(player.duration > 0 ? FocusTimer.format(player.duration) : "Live")
                             }
                             .font(.system(size: 9, weight: .medium).monospacedDigit()).foregroundStyle(.white.opacity(0.4))
                         }
                     }
                     HStack(spacing: 14) {
                         Spacer(minLength: 0)
-                        IconButton(symbol: "backward.fill", size: 26, help: "Previous") { spotify.previous() }
-                        IconButton(symbol: spotify.playing ? "pause.fill" : "play.fill", size: 32, filled: true, theme: theme,
-                                   help: spotify.playing ? "Pause" : "Play") { spotify.playPause() }
-                        IconButton(symbol: "forward.fill", size: 26, help: "Next") { spotify.next() }
+                        IconButton(symbol: "backward.fill", size: 26, help: "Previous") { player.previous() }
+                        IconButton(symbol: player.playing ? "pause.fill" : "play.fill", size: 32, filled: true, theme: theme,
+                                   help: player.playing ? "Pause" : "Play") { player.playPause() }
+                        IconButton(symbol: "forward.fill", size: 26, help: "Next") { player.next() }
                         Spacer(minLength: 0)
                     }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("NOW PLAYING").label()
+                    Text(player.source.name.uppercased()).label()
                     Spacer(minLength: 0)
                     Image(systemName: "waveform").font(.system(size: 22, weight: .light)).foregroundStyle(theme.gradient)
                     Text(statusText).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
                         .fixedSize(horizontal: false, vertical: true)
-                    if spotify.installed, !spotify.running {
-                        Button("Open Spotify") { spotify.openSpotify() }.buttonStyle(PillButtonStyle(theme: theme))
-                    } else if spotify.permissionDenied {
+                    if player.installed, !player.running {
+                        Button("Open \(player.source.name)") { player.openApp() }.buttonStyle(PillButtonStyle(theme: theme))
+                    } else if player.permissionDenied {
                         Button("Open Settings") {
                             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!)
                         }.buttonStyle(PillButtonStyle(theme: theme))
@@ -316,27 +380,31 @@ struct MusicTile: View {
                 }
             }
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            // The artwork, blurred, glows through the tile.
+            // The artwork, blurred, glows through the page.
             Color.clear.overlay {
-                if let art = spotify.artwork, spotify.hasTrack, spotify.loaded {
+                if let art = player.artwork, player.hasTrack, player.loaded {
                     Image(nsImage: art).resizable().scaledToFill().blur(radius: 30).opacity(0.38).saturation(1.4)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipped()
         )
     }
 
     private var statusText: String {
-        if !spotify.installed { return "Spotify isn't installed" }
-        if !spotify.running { return "Spotify is closed" }
-        if spotify.permissionDenied { return "Allow Perch to control Spotify" }
+        let name = player.source.name
+        if !player.installed { return "\(name) isn't installed" }
+        if !player.running { return "\(name) is closed" }
+        if player.permissionDenied { return "Allow Perch to control \(name)" }
         return "Nothing playing"
     }
 
     @ViewBuilder private var artwork: some View {
-        if let art = spotify.artwork {
+        if let art = player.artwork {
             Image(nsImage: art).resizable().scaledToFill()
+                .frame(width: 54, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
         } else {

@@ -34,24 +34,29 @@ struct AppEnvironment {
     let state: NotchState
     let settings: AppSettings
     let claude: ClaudeModel
-    let spotify: SpotifyModel
+    let media: MediaHub
     let shelf: ShelfModel
     let calendar: CalendarModel
     let timer: FocusTimer
     let prompt: PromptModel
 
+    var spotify: PlayerModel { media.players[0] }
+
     static func live() -> AppEnvironment {
         let settings = AppSettings()
         let state = NotchState(geometry: NotchGeometry.detect().geometry)
-        let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), spotify: SpotifyModel(),
+        let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)]),
                                  shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel())
         env.claude.onAlert = { [weak state] t in state?.push(t) }
         env.claude.finishAlertsEnabled = { settings.finishAlerts }
         env.calendar.onAlert = { [weak state] t in state?.push(t) }
         env.timer.onAlert = { [weak state] t in state?.push(t) }
         ShelfModel.onProblem = { [weak state] t in state?.push(t) }
+        AutoPalette.shared.isActive = { settings.theme == .auto }
+        AutoPalette.shared.explicitlyChosen = { settings.themeChosen }
+        AutoPalette.shared.start()
         env.claude.start()
-        env.spotify.start()
+        env.media.start()
         env.calendar.start()
         return env
     }
@@ -62,7 +67,7 @@ extension View {
         self.environment(env.state)
             .environment(env.settings)
             .environment(env.claude)
-            .environment(env.spotify)
+            .environment(env.media)
             .environment(env.shelf)
             .environment(env.calendar)
             .environment(env.timer)

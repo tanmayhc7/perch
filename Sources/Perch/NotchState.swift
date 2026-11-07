@@ -100,27 +100,30 @@ final class NotchState {
 }
 
 enum Theme: String, CaseIterable, Identifiable {
-    case ember, aurora, graphite
+    /// Colours taken from the wallpaper behind the notch (see `AutoPalette`).
+    case auto, ember, aurora, graphite
     var id: String { rawValue }
-    var name: String { rawValue.capitalized }
+    var name: String { self == .auto ? "Auto (matches wallpaper)" : rawValue.capitalized }
 
     /// Main accent: rings, glows, the prompt spark.
-    var accent: Color {
+    @MainActor var accent: Color {
         switch self {
+        case .auto: AutoPalette.shared.accent
         case .ember: Color(red: 1.00, green: 0.55, blue: 0.32)
         case .aurora: Color(red: 0.36, green: 0.93, blue: 0.80)
         case .graphite: Color(white: 0.92)
         }
     }
     /// Second stop of every gradient.
-    var accent2: Color {
+    @MainActor var accent2: Color {
         switch self {
+        case .auto: AutoPalette.shared.accent2
         case .ember: Color(red: 1.00, green: 0.30, blue: 0.45)
         case .aurora: Color(red: 0.55, green: 0.45, blue: 1.00)
         case .graphite: Color(white: 0.55)
         }
     }
-    var gradient: LinearGradient {
+    @MainActor var gradient: LinearGradient {
         LinearGradient(colors: [accent, accent2], startPoint: .leading, endPoint: .trailing)
     }
 }
@@ -129,7 +132,15 @@ enum Theme: String, CaseIterable, Identifiable {
 final class AppSettings {
     private let d: UserDefaults
 
-    var theme: Theme { didSet { d.set(theme.rawValue, forKey: "theme") } }
+    var theme: Theme {
+        didSet {
+            d.set(theme.rawValue, forKey: "theme")
+            d.set(true, forKey: "themeChosen")
+            if theme == .auto { AutoPalette.shared.update() }
+        }
+    }
+    /// The person picked a theme in the menu (rather than keeping the default).
+    var themeChosen: Bool { d.bool(forKey: "themeChosen") }
     var hoverToExpand: Bool { didSet { d.set(hoverToExpand, forKey: "hoverToExpand") } }
     var finishAlerts: Bool { didSet { d.set(finishAlerts, forKey: "finishAlerts") } }
     var promptModel: String { didSet { d.set(promptModel, forKey: "promptModel") } }
@@ -151,8 +162,8 @@ final class AppSettings {
     init(persist: Bool = true) {
         self.persist = persist
         d = persist ? .standard : UserDefaults(suiteName: "perch.snapshots")!
-        d.register(defaults: ["theme": Theme.ember.rawValue, "hoverToExpand": true, "finishAlerts": true, "promptModel": "haiku"])
-        theme = Theme(rawValue: d.string(forKey: "theme") ?? "") ?? .ember
+        d.register(defaults: ["theme": Theme.auto.rawValue, "hoverToExpand": true, "finishAlerts": true, "promptModel": "haiku"])
+        theme = Theme(rawValue: d.string(forKey: "theme") ?? "") ?? .auto
         hoverToExpand = d.bool(forKey: "hoverToExpand")
         finishAlerts = d.bool(forKey: "finishAlerts")
         let model = d.string(forKey: "promptModel") ?? "haiku"

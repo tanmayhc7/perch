@@ -77,10 +77,11 @@ final class NotchController {
                 case "expand": self.expand(); self.env.state.pinned = true
                 case "collapse": self.collapse()
                 case "cancel": self.env.prompt.cancel()
+                case _ where cmd.hasPrefix("page:"): self.env.media.selectedID = String(cmd.dropFirst(5))
                 case "state":
                     let p = self.env.prompt
-                    NSLog("Perch state: phase=\(p.phase) asked=\(p.asked.prefix(40)) answer=\(p.answer.prefix(120).replacingOccurrences(of: "\n", with: " ")) toast=\(self.env.state.toast?.title ?? "-") spotify=\(self.env.spotify.running)/\(self.env.spotify.title) claude=\(self.env.claude.loaded)/\(TokenFormat.short(self.env.claude.stats.windowTokens))/\(self.env.claude.stats.windowText)")
-                case "loading": self.env.claude.loaded = false; self.env.spotify.loaded = false; self.expand(); self.env.state.pinned = true
+                    NSLog("Perch state: phase=\(p.phase) asked=\(p.asked.prefix(40)) answer=\(p.answer.prefix(120).replacingOccurrences(of: "\n", with: " ")) toast=\(self.env.state.toast?.title ?? "-") media=\(self.env.media.selectedID) \(self.env.media.players.map { "\($0.id):\($0.running)/\($0.playing)/\($0.title)/art=\($0.artwork != nil)" }) claude=\(self.env.claude.loaded)/\(TokenFormat.short(self.env.claude.stats.windowTokens))/\(self.env.claude.stats.windowText)")
+                case "loading": self.env.claude.loaded = false; self.env.media.players.forEach { $0.loaded = false }; self.expand(); self.env.state.pinned = true
                 case "draghint": self.env.state.dragHint.toggle()
                 case "drop": self.expand(); self.env.state.pinned = true; self.env.state.dropMode = true
                 case "toast":
@@ -189,7 +190,7 @@ final class NotchController {
         panel.ignoresMouseEvents = false
         let t1 = CFAbsoluteTimeGetCurrent()
         env.shelf.pruneMissing()
-        if env.spotify.running { env.spotify.refresh() }
+        for p in env.media.players where p.running { p.refresh() }
         env.claude.refresh()
         // EventKit queries can take a while; run them after the first frame is on screen.
         DispatchQueue.main.async { [env] in env.calendar.reload() }
