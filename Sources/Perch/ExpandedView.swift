@@ -173,11 +173,11 @@ struct ClaudeTile: View {
                                     .font(.system(size: 22, weight: .semibold, design: .rounded).monospacedDigit())
                                     .foregroundStyle(.white)
                                     .contentTransition(.numericText())
-                                Text("last \(Int(s.windowHours))h").font(.system(size: 10.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
+                                Text("last \(s.windowText)").font(.system(size: 10.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
                             }
                             HStack(spacing: 10) {
                                 stat("TODAY", TokenFormat.short(s.todayTokens))
-                                stat("COST", String(format: "$%.2f", s.windowUSD))
+                                stat("COST", s.windowUSD < 1000 ? String(format: "$%.2f", s.windowUSD) : "$" + TokenFormat.short(s.windowUSD))
                                 stat("BURN", "\(TokenFormat.short(s.burnPerMinute))/m", warn: s.burnPerMinute >= 40_000)
                             }
                             Sparkline(values: s.burnHistory, theme: theme).frame(height: 16)
@@ -192,10 +192,10 @@ struct ClaudeTile: View {
 
     @ViewBuilder private func gauge(_ s: ClaudeStats, theme: Theme) -> some View {
         ZStack {
-            if let f = s.budgetUsedFraction {
+            if let f = s.budgetUsedFraction, let left = s.budgetPercentLeft {
                 ProgressRing(progress: f, theme: theme, lineWidth: 7, warn: f >= 0.8)
                 VStack(spacing: -1) {
-                    Text("\(max(0, Int(((1 - f) * 100).rounded())))%")
+                    Text("\(left)%")
                         .font(.system(size: 17, weight: .semibold, design: .rounded).monospacedDigit()).foregroundStyle(.white)
                     Text(f >= 1 ? "over" : "left").font(.system(size: 9.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
                 }
@@ -223,7 +223,7 @@ struct ClaudeTile: View {
     @ViewBuilder private func sessions(_ s: ClaudeStats, theme: Theme) -> some View {
         HStack(spacing: 6) {
             if s.sessions.isEmpty {
-                Text("No Claude Code sessions in the last \(Int(s.windowHours))h")
+                Text("No Claude Code sessions in the last \(s.windowText)")
                     .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.45))
             }
             ForEach(s.sessions.prefix(2)) { a in
@@ -463,6 +463,7 @@ struct PromptBar: View {
                     .foregroundStyle(.white)
                     .focused($focused)
                     .onSubmit { prompt.send(model: settings.promptModel) }
+                    .onExitCommand { focused = false; state.collapseAction() }
                     .onTapGesture { state.focusPromptAction(); focused = true }
             }
             Menu {
@@ -512,6 +513,13 @@ struct AnswerPanel: View {
     @Environment(PromptModel.self) private var prompt
     @Environment(AppSettings.self) private var settings
 
+    /// Inline markdown (bold, code, links), keeping line breaks. Plain text if it doesn't parse.
+    static func markdown(_ s: String) -> AttributedString {
+        (try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace,
+                                                          failurePolicy: .returnPartiallyParsedIfPossible)))
+            ?? AttributedString(s)
+    }
+
     var body: some View {
         let theme = settings.theme
         Tile(padding: 12) {
@@ -540,7 +548,7 @@ struct AnswerPanel: View {
                             Text("Thinking…").foregroundStyle(theme.gradient)
                                 .phaseAnimator([0.4, 1.0]) { v, o in v.opacity(o) } animation: { _ in .easeInOut(duration: 0.7) }
                         default:
-                            Text(LocalizedStringKey(prompt.answer)).foregroundStyle(.white.opacity(0.92)).textSelection(.enabled)
+                            Text(Self.markdown(prompt.answer)).foregroundStyle(.white.opacity(0.92)).textSelection(.enabled)
                         }
                     }
                     .font(.system(size: 12.5))
@@ -634,7 +642,7 @@ struct ShelfStrip: View {
                     }
                 }
                 VStack(spacing: 4) {
-                    Button("AirDrop all") { ShelfModel.airDrop(shelf.items.map(\.url)) }.buttonStyle(PillButtonStyle(theme: settings.theme))
+                    Button("AirDrop all") { shelf.airDropAll() }.buttonStyle(PillButtonStyle(theme: settings.theme))
                     Button("Clear") { shelf.clear() }.buttonStyle(PillButtonStyle(theme: settings.theme))
                 }
                 .fixedSize()

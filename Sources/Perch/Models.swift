@@ -36,15 +36,46 @@ final class ShelfModel {
 
     var items: [Item] = []
 
+    /// The shelf holds at most this many files; older ones fall off the front.
+    static let limit = 60
+
     func add(_ urls: [URL]) {
-        for u in urls where !items.contains(where: { $0.url == u }) { items.append(Item(url: u)) }
+        for u in urls.prefix(Self.limit) {
+            let u = u.standardizedFileURL
+            guard !items.contains(where: { $0.url == u }), FileManager.default.fileExists(atPath: u.path) else { continue }
+            items.append(Item(url: u))
+        }
+        if items.count > Self.limit { items.removeFirst(items.count - Self.limit) }
+    }
+
+    /// Drops files that were deleted or moved since they were shelved.
+    func pruneMissing() {
+        let kept = items.filter { FileManager.default.fileExists(atPath: $0.url.path) }
+        if kept.count != items.count { items = kept }
+    }
+
+    func airDropAll() {
+        pruneMissing()
+        Self.airDrop(items.map(\.url))
     }
 
     func remove(_ item: Item) { items.removeAll { $0.id == item.id } }
     func clear() { items.removeAll() }
 
+    /// Set by the app: shows a message when AirDrop can't take the files.
+    @MainActor static var onProblem: ((Toast) -> Void)?
+
     static func airDrop(_ urls: [URL]) {
-        guard !urls.isEmpty, let service = NSSharingService(named: .sendViaAirDrop) else { return }
+        let urls = urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !urls.isEmpty else {
+            onProblem?(Toast(symbol: "questionmark.folder", tint: .warning, title: "Those files are gone", subtitle: "They were moved or deleted"))
+            return
+        }
+        guard let service = NSSharingService(named: .sendViaAirDrop), service.canPerform(withItems: urls) else {
+            onProblem?(Toast(symbol: "dot.radiowaves.left.and.right", tint: .warning, title: "AirDrop isn't available",
+                             subtitle: "Turn on Wi-Fi and Bluetooth, then try again"))
+            return
+        }
         NSApp.activate(ignoringOtherApps: true)
         service.perform(withItems: urls)
     }
@@ -219,7 +250,8 @@ final class FocusTimer {
     }
 
     static func format(_ t: TimeInterval) -> String {
-        let s = Int(t.rounded(.up))
+        // Spotify can report odd durations (live streams, local files); never trap on them.
+        let s = t.isFinite ? Int(min(max(0, t), 359_999).rounded(.up)) : 0
         return String(format: "%d:%02d", s / 60, s % 60)
     }
 }

@@ -65,42 +65,73 @@ final class SpotifyModel {
             refresh()
         } else {
             loaded = false
-            playing = false
-            title = ""
-            artist = ""
-            artwork = nil
-            artworkURL = ""
+            clearTrack()
         }
     }
 
+    private func clearTrack() {
+        playing = false
+        title = ""
+        artist = ""
+        album = ""
+        duration = 0
+        artwork = nil
+        artworkURL = ""
+    }
+
+    /// A read script is under way. A busy Spotify can hold one for a long time; don't queue more behind it.
+    @ObservationIgnored private var reading = false
+
+    /// Fields are separated by ASCII 31 (unit separator), which can't appear in a track name the way a line break can.
+    /// The `is running` check matters: a `tell` to an app that quit a moment ago would relaunch it.
     private static let readScript = """
-    tell application id "com.spotify.client"
-        set pState to player state as string
-        set tr to current track
-        return pState & linefeed & (name of tr) & linefeed & (artist of tr) & linefeed & (album of tr) & linefeed & (artwork url of tr) & linefeed & ((duration of tr) as string) & linefeed & ((player position) as string)
-    end tell
+    if application id "com.spotify.client" is running then
+        with timeout of 4 seconds
+        tell application id "com.spotify.client"
+            set sep to character id 31
+            set pState to player state as string
+            if pState is "stopped" then return pState
+            set tr to current track
+            return pState & sep & (name of tr) & sep & (artist of tr) & sep & (album of tr) & sep & (artwork url of tr) & sep & ((duration of tr) as string) & sep & ((player position) as string)
+        end tell
+        end timeout
+    end if
+    return "closed"
     """
 
     func refresh() {
         guard running else { return }
+        guard !reading else { return }
+        reading = true
         run(Self.readScript) { [weak self] out in
             guard let self else { return }
+            self.reading = false
             self.loaded = true
             guard let out else { return }
-            let p = out.components(separatedBy: "\n")
+            if out == "stopped" || out == "closed" { self.clearTrack(); return }
+            let p = out.components(separatedBy: "\u{1F}")
             guard p.count >= 7 else { return }
             self.playing = p[0] == "playing"
             self.title = p[1]
             self.artist = p[2]
             self.album = p[3]
-            self.duration = (Double(p[5]) ?? 0) / 1000
-            self.positionAtRead = Double(p[6].replacingOccurrences(of: ",", with: ".")) ?? 0
+            let d = (Double(p[5]) ?? 0) / 1000
+            self.duration = d.isFinite && d > 0 ? d : 0
+            let pos = Double(p[6].replacingOccurrences(of: ",", with: ".")) ?? 0
+            self.positionAtRead = pos.isFinite && pos > 0 ? pos : 0
             self.positionAt = Date()
             if p[4] != self.artworkURL { self.loadArtwork(p[4]) }
         }
     }
 
-    func playPause() { command("playpause"); playing.toggle(); positionAt = Date() }
+    func playPause() {
+        guard running else { return }
+        // Keep the progress bar where it is: bank the time played so far before flipping state.
+        positionAtRead = position(at: Date())
+        positionAt = Date()
+        playing.toggle()
+        command("playpause")
+    }
     func next() { command("next track") }
     func previous() { command("previous track") }
 
@@ -111,7 +142,7 @@ final class SpotifyModel {
 
     private func command(_ c: String) {
         guard running else { return }
-        run("tell application id \"com.spotify.client\" to \(c)") { [weak self] _ in
+        run("if application id \"com.spotify.client\" is running then tell application id \"com.spotify.client\" to \(c)") { [weak self] _ in
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(250))
                 self?.refresh()
