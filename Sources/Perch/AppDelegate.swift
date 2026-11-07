@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Don't leave a `claude -p` running with nobody to read it.
         env?.prompt.cancel()
+        // Nor Do Not Disturb on with no timer to turn it off.
+        env?.focus.finishBeforeQuit()
     }
 }
 
@@ -39,6 +41,7 @@ struct AppEnvironment {
     let calendar: CalendarModel
     let timer: FocusTimer
     let prompt: PromptModel
+    let focus: FocusLink
 
     var spotify: PlayerModel { media.players[0] }
 
@@ -46,12 +49,17 @@ struct AppEnvironment {
         let settings = AppSettings()
         let state = NotchState(geometry: NotchGeometry.detect().geometry)
         let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)]),
-                                 shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel())
+                                 shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink())
         env.claude.onAlert = { [weak state] t in state?.push(t) }
         env.claude.finishAlertsEnabled = { settings.finishAlerts }
         env.calendar.onAlert = { [weak state] t in state?.push(t) }
         env.timer.onAlert = { [weak state] t in state?.push(t) }
         ShelfModel.onProblem = { [weak state] t in state?.push(t) }
+        env.focus.onAlert = { [weak state] t in state?.push(t) }
+        env.focus.isEnabled = { settings.focusDND }
+        env.timer.onBegan = { [weak focus = env.focus] end in focus?.begin(endsAt: end) }
+        env.timer.onEnded = { [weak focus = env.focus] in focus?.finish() }
+        env.focus.start()
         AutoPalette.shared.isActive = { settings.theme == .auto }
         AutoPalette.shared.explicitlyChosen = { settings.themeChosen }
         AutoPalette.shared.start()
@@ -72,5 +80,6 @@ extension View {
             .environment(env.calendar)
             .environment(env.timer)
             .environment(env.prompt)
+            .environment(env.focus)
     }
 }

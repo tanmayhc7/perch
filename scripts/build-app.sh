@@ -33,6 +33,8 @@ sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Resources/Info.plist >
 ICONSET="$(mktemp -d)/AppIcon.iconset"
 "$APP/Contents/MacOS/Perch" --icon "$ICONSET"
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+# The shortcuts that let the focus timer turn on Do Not Disturb (see scripts/focus-shortcut.py).
+cp Resources/*.shortcut "$APP/Contents/Resources/"
 
 xattr -cr "$APP"
 codesign --force --deep --sign - "$APP"

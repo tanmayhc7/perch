@@ -77,6 +77,11 @@ final class NotchController {
                 case "expand": self.expand(); self.env.state.pinned = true
                 case "collapse": self.collapse()
                 case "cancel": self.env.prompt.cancel()
+                case "dnd-on": self.env.settings.focusDND = true; self.env.focus.enable()
+                case "timerstop": self.env.timer.stop()
+                case "quit": NSApp.terminate(nil)
+                case _ where cmd.hasPrefix("timer:"): self.env.timer.start(minutes: Double(cmd.dropFirst(6)) ?? 1, label: "Focus")
+                case "focusstate": NSLog("Perch focus: setup=\(self.env.focus.setup) active=\(self.env.focus.active) toast=\(self.env.state.toast?.title ?? "-")")
                 case _ where cmd.hasPrefix("page:"): self.env.media.selectedID = String(cmd.dropFirst(5))
                 case "state":
                     let p = self.env.prompt

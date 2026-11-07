@@ -97,6 +97,7 @@ struct HeaderRow: View {
 
 struct SettingsMenu: View {
     @Environment(AppSettings.self) private var settings
+    @Environment(FocusLink.self) private var focus
     @Environment(NotchState.self) private var state
     @Environment(\.snapshotMode) private var snapshot
 
@@ -108,6 +109,10 @@ struct SettingsMenu: View {
             }
             Toggle("Open on hover", isOn: $s.hoverToExpand)
             Toggle("Alert when a session finishes", isOn: $s.finishAlerts)
+            Toggle("Do Not Disturb during focus timer", isOn: Binding(get: { settings.focusDND }, set: { on in
+                settings.focusDND = on
+                if on { focus.enable() }
+            }))
             Toggle("Open at login", isOn: $s.launchAtLogin)
             Divider()
             Button("Perch on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/tanmayhc7/perch")!) }
@@ -471,6 +476,7 @@ struct MeetingTile: View {
 
 struct TimerTile: View {
     @Environment(FocusTimer.self) private var timer
+    @Environment(FocusLink.self) private var focus
     @Environment(AppSettings.self) private var settings
 
     var body: some View {
@@ -494,7 +500,13 @@ struct TimerTile: View {
                         VStack(alignment: .leading, spacing: 0) {
                             Text(FocusTimer.format(timer.remaining(at: ctx.date)))
                                 .font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit()).foregroundStyle(.white)
-                            Text(timer.phase == .paused ? "Paused" : timer.label).font(.system(size: 9.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
+                            HStack(spacing: 3) {
+                                if focus.active {
+                                    Image(systemName: "moon.fill").font(.system(size: 8)).foregroundStyle(theme.gradient)
+                                        .help("Do Not Disturb is on until the timer ends")
+                                }
+                                Text(timer.phase == .paused ? "Paused" : timer.label).font(.system(size: 9.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
+                            }
                         }
                         Spacer(minLength: 0)
                         IconButton(symbol: timer.phase == .paused ? "play.fill" : "pause.fill", size: 22) { timer.toggle() }

@@ -68,6 +68,15 @@ requested when you click **Show my calendar**.
 ### Focus timer
 25, 50 or 5 minutes. The countdown ring sits beside the closed notch, and a chime plus a slide-out tell you when it's done.
 
+**Do Not Disturb while it runs (optional).** Turn on **⋯ → Do Not Disturb during focus timer** and starting a timer
+turns on Do Not Disturb; when it ends or you stop it, Perch turns it off and puts back the Focus you had on before
+(Work, Personal, or none). If you switch Focus yourself during the timer, Perch leaves your choice alone.
+
+macOS doesn't let apps change Focus directly, so this goes through two small shortcuts, **Perch Focus** and
+**Perch Focus Off**. The first time you turn the option on, Perch opens them in the Shortcuts app; click
+**Add Shortcut** on each. They only get and set your Focus, and you can read every step in Shortcuts.
+Perch remembers a running session, so quitting Perch, a crash or sleep can't leave Do Not Disturb stuck on.
+
 ### Themes
 **Auto** (the default) takes its colours from your wallpaper, so the glow, rings and buttons match your desktop.
 It picks the strongest colours in the strip of wallpaper behind the menu bar and brightens them to glow on black,
@@ -112,6 +121,7 @@ There's no Dock icon. To quit, open the notch and choose **⋯ → Quit Perch**.
 | First time Spotify is open | Automation → Spotify | To read the current track and play, pause and skip |
 | First time Apple Music is open | Automation → Music | The same, for Apple Music |
 | You click **Show my calendar** | Calendars | To show your next meeting |
+| You turn on **Do Not Disturb during focus timer** | Adding two shortcuts in Shortcuts | To turn Do Not Disturb on and off for the timer |
 
 You can turn any of these off in **System Settings → Privacy & Security** at any time.
 
@@ -141,6 +151,8 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 | `Sources/Perch/*Model*.swift` | Claude, music players, shelf, calendar, timer and prompt models; `AutoPalette.swift` picks the Auto theme's colours |
 | `Sources/Perch/RootView.swift`, `ExpandedView.swift` | The SwiftUI views |
 | `scripts/build-app.sh` | Builds a universal `.app` and the release zip with SwiftPM only |
+| `scripts/focus-shortcut.py` | Generates and signs the two Focus shortcuts in `Resources/` |
+| `Sources/Perch/FocusLink.swift` | Runs those shortcuts for the focus timer, with crash and sleep recovery |
 
 ## Privacy
 - Everything stays on your Mac. Perch has no analytics, no telemetry and no server.
@@ -149,6 +161,7 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 - Spotify artwork is downloaded from Spotify's image servers. Nothing is sent to Spotify beyond what its own app already does. Apple Music artwork comes straight from the Music app.
 - The Auto theme reads your wallpaper file on your Mac to pick colours. It doesn't capture your screen. If your wallpaper is in Desktop, Documents or Downloads, it's only read after you choose **Auto** in the menu yourself, because macOS asks permission for those folders.
 - Calendar events are read on your Mac with Apple's EventKit and never leave it.
+- The Focus option runs the two Perch shortcuts on your Mac with Apple's `shortcuts` command. They read and set your Focus and nothing else.
 - Files on the shelf are only referenced, never copied or uploaded. AirDrop uses macOS's own AirDrop sheet.
 
 ## Signing and notarization

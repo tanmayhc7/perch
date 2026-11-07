@@ -144,6 +144,8 @@ final class AppSettings {
     var hoverToExpand: Bool { didSet { d.set(hoverToExpand, forKey: "hoverToExpand") } }
     var finishAlerts: Bool { didSet { d.set(finishAlerts, forKey: "finishAlerts") } }
     var promptModel: String { didSet { d.set(promptModel, forKey: "promptModel") } }
+    /// Turn on Do Not Disturb while the focus timer runs (through the Perch Focus shortcuts).
+    var focusDND: Bool { didSet { d.set(focusDND, forKey: "focusDND") } }
     var launchAtLogin: Bool {
         didSet {
             guard !syncingLogin, persist else { return }
@@ -166,6 +168,7 @@ final class AppSettings {
         theme = Theme(rawValue: d.string(forKey: "theme") ?? "") ?? .auto
         hoverToExpand = d.bool(forKey: "hoverToExpand")
         finishAlerts = d.bool(forKey: "finishAlerts")
+        focusDND = d.bool(forKey: "focusDND")
         let model = d.string(forKey: "promptModel") ?? "haiku"
         promptModel = PromptModel.models.contains { $0.id == model } ? model : "haiku"
         launchAtLogin = SMAppService.mainApp.status == .enabled

@@ -193,6 +193,9 @@ final class FocusTimer {
     var label = "Focus"
 
     @ObservationIgnored var onAlert: ((Toast) -> Void)?
+    /// A session began (with when it ends) or ended (finished or stopped). Pausing changes neither.
+    @ObservationIgnored var onBegan: ((Date) -> Void)?
+    @ObservationIgnored var onEnded: (() -> Void)?
     @ObservationIgnored private var timer: Timer?
 
     func remaining(at now: Date) -> TimeInterval {
@@ -211,6 +214,7 @@ final class FocusTimer {
         endsAt = Date().addingTimeInterval(total)
         phase = .running
         schedule()
+        onBegan?(endsAt)
     }
 
     func toggle() {
@@ -224,12 +228,15 @@ final class FocusTimer {
             endsAt = Date().addingTimeInterval(remainingWhenPaused)
             phase = .running
             schedule()
+            onBegan?(endsAt)
         }
     }
 
     func stop() {
+        guard phase != .idle else { return }
         phase = .idle
         timer?.invalidate()
+        onEnded?()
     }
 
     private func schedule() {
@@ -242,6 +249,7 @@ final class FocusTimer {
     private func finish() {
         guard phase == .running else { return }
         phase = .idle
+        onEnded?()
         NSSound(named: "Glass")?.play()
         onAlert?(Toast(symbol: "checkmark.circle.fill", tint: .calm, title: "\(label) done",
                        subtitle: "\(Int(total / 60)) minutes", actionTitle: "Again",
