@@ -18,6 +18,7 @@ enum Snapshots {
             env.state.toast = Toast(symbol: "gauge.with.dots.needle.67percent", tint: .warning, title: "80% of your Claude budget used",
                                     subtitle: "4M in 5h · 1M left")
         }
+        shot(dir, "drag-hint", theme: .ember, height: 130) { env in env.state.dragHint = true }
         shot(dir, "drop", theme: .ember) { env in
             env.state.mode = .expanded
             env.state.dropMode = true
@@ -54,6 +55,8 @@ enum Snapshots {
                               reqs: (0..<30).map { req(Double($0) * 4 + 3, 26_000) })
         let c = LedgerSession(id: "c", cwd: "/Users/me/code/website", updatedAt: now.addingTimeInterval(-3600), streaming: 0,
                               reqs: (0..<20).map { req(Double($0) * 6 + 120, 30_000) })
+        env.claude.loaded = true
+        env.spotify.loaded = true
         env.claude.stats = ClaudeStats.compute(sessions: [a, b, c], budget: LedgerBudget(tokens: 5_000_000), now: now)
         env.spotify.installed = true
         env.spotify.running = true

@@ -6,11 +6,17 @@ struct ExpandedView: View {
     @Environment(NotchState.self) private var state
     @Environment(ShelfModel.self) private var shelf
     @Environment(PromptModel.self) private var prompt
+    @Environment(\.snapshotMode) private var snapshot
+    // `State` written out: the command-line SDK has no @State macro plugin.
+    private let _appeared = State(initialValue: false)
+    private let _dropTargeted = State(initialValue: false)
 
     var body: some View {
         let g = state.geometry
+        let shown = _appeared.wrappedValue || snapshot
         VStack(spacing: 0) {
             HeaderRow().frame(height: g.height)
+                .modifier(Entrance(index: 0, shown: shown))
             Spacer().frame(height: 6)
             Group {
                 if state.dropMode {
@@ -25,18 +31,25 @@ struct ExpandedView: View {
                 }
             }
             .frame(height: NotchLayout.tileHeight)
+            .modifier(Entrance(index: 1, shown: shown))
             if !shelf.items.isEmpty {
                 ShelfStrip()
                     .frame(height: NotchLayout.shelfHeight)
                     .padding(.top, NotchLayout.gap)
                     .transition(.move(edge: .top).combined(with: .opacity))
+                    .modifier(Entrance(index: 2, shown: shown))
             }
             PromptBar()
                 .frame(height: NotchLayout.promptHeight)
                 .padding(.top, NotchLayout.gap)
+                .modifier(Entrance(index: 3, shown: shown))
             Spacer(minLength: 0)
         }
         .padding(.horizontal, NotchLayout.inset + NotchLayout.shoulder(expanded: true))
+        .onAppear { _appeared.wrappedValue = true }
+        // Files dropped anywhere on the open notch switch it to the drop targets.
+        .modifier(DropCatcher(on: !snapshot, targeted: _dropTargeted.projectedValue))
+        .onChange(of: _dropTargeted.wrappedValue) { _, t in if t { state.dropMode = true } }
         .animation(.notch, value: state.dropMode)
         .animation(.notch, value: prompt.phase == .idle)
         .animation(.notch, value: shelf.items.count)
@@ -67,11 +80,15 @@ struct HeaderRow: View {
             Spacer(minLength: state.geometry.width + 16)
             HStack(spacing: 4) {
                 Spacer(minLength: 0)
-                TimelineView(.everyMinute) { ctx in
-                    Text(ctx.date, format: .dateTime.hour().minute())
-                        .font(.system(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.white.opacity(0.55))
-                        .padding(.trailing, 4)
+                HStack(spacing: 5) {
+                    Image(systemName: "tray.and.arrow.down").font(.system(size: 10, weight: .semibold))
+                    Text("Drop files · AirDrop or shelf").font(.system(size: 10.5, weight: .medium))
                 }
+                .foregroundStyle(.white.opacity(0.55))
+                .padding(.horizontal, 9)
+                .frame(height: 22)
+                .overlay(Capsule().strokeBorder(.white.opacity(0.16), style: StrokeStyle(lineWidth: 0.75, dash: [3, 2.5])))
+                .help("Drag files onto the notch to AirDrop them or hold them on the shelf")
                 SettingsMenu()
             }
         }
@@ -135,7 +152,9 @@ struct ClaudeTile: View {
         let s = claude.stats
         let theme = settings.theme
         Tile {
-            if !claude.ledgerFound {
+            if !claude.loaded {
+                LoadingPlaceholder(caption: "Loading Claude stats…", theme: theme, ring: true)
+            } else if !claude.ledgerFound {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("CLAUDE CODE").label()
                     Text("No token-meter ledger yet").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
@@ -239,7 +258,9 @@ struct MusicTile: View {
     var body: some View {
         let theme = settings.theme
         Tile(padding: 12) {
-            if spotify.hasTrack {
+            if spotify.running && !spotify.loaded {
+                LoadingPlaceholder(caption: "Loading Spotify…", theme: theme)
+            } else if spotify.hasTrack {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 10) {
                         artwork.frame(width: 54, height: 54)
@@ -298,7 +319,7 @@ struct MusicTile: View {
         .background(
             // The artwork, blurred, glows through the tile.
             Color.clear.overlay {
-                if let art = spotify.artwork, spotify.hasTrack {
+                if let art = spotify.artwork, spotify.hasTrack, spotify.loaded {
                     Image(nsImage: art).resizable().scaledToFill().blur(radius: 30).opacity(0.38).saturation(1.4)
                 }
             }
@@ -671,5 +692,71 @@ private struct ShelfItemActions: ViewModifier {
                     Button("Remove from shelf") { shelf.remove(item) }
                 }
         }
+    }
+}
+
+/// Each section of the open notch drops into place a beat after the one above it.
+struct Entrance: ViewModifier {
+    var index: Int
+    var shown: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : -12)
+            .scaleEffect(shown ? 1 : 0.96, anchor: .top)
+            .blur(radius: shown ? 0 : 3)
+            .animation(.spring(response: 0.34, dampingFraction: 0.8).delay(Double(index) * 0.035), value: shown)
+    }
+}
+
+/// `.onDrop` on the whole open notch (left out of snapshots, which can't draw it).
+private struct DropCatcher: ViewModifier {
+    var on: Bool
+    var targeted: Binding<Bool>
+
+    func body(content: Content) -> some View {
+        if on {
+            content.onDrop(of: [.fileURL], isTargeted: targeted) { _ in false }
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Loading
+
+/// Placeholder bars that breathe, with a caption, while a tile's data loads.
+struct LoadingPlaceholder: View {
+    var caption: String
+    var theme: Theme
+    var ring = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            if ring {
+                ZStack {
+                    Circle().stroke(.white.opacity(0.08), lineWidth: 7)
+                    Circle().trim(from: 0, to: 0.28)
+                        .stroke(theme.gradient, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        .phaseAnimator([0.0, 360.0]) { v, a in v.rotationEffect(.degrees(a)) } animation: { _ in .linear(duration: 0.9) }
+                }
+                .frame(width: 78, height: 78)
+            } else {
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.09)).frame(width: 54, height: 54)
+            }
+            VStack(alignment: .leading, spacing: 7) {
+                bar(0.1, max: 90, height: 14)
+                bar(0.07, max: 130, height: 9)
+                bar(0.07, max: 70, height: 9)
+                Text(caption).font(.system(size: 10.5, weight: .medium)).foregroundStyle(.white.opacity(0.5)).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .phaseAnimator([1.0, 0.45]) { v, o in v.opacity(o) } animation: { _ in .easeInOut(duration: 0.75) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private func bar(_ white: Double, max: CGFloat, height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 4).fill(.white.opacity(white)).frame(maxWidth: max).frame(height: height)
     }
 }

@@ -68,7 +68,7 @@ enum NotchLayout {
         let ears = hasEars(claude: claude, timer: timer, calendar: calendar)
         var w = g.width + 2 * collapsedShoulder + (ears ? 2 * ear : 0)
         var h = g.height
-        if state.toast != nil {
+        if state.toast != nil || state.dragHint {
             w = max(w, g.width + 2 * ear + 120)
             h += 50
         }

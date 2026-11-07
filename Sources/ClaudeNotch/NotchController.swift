@@ -17,7 +17,6 @@ final class NotchController {
     private var monitors: [Any] = []
     private var dragTimer: Timer?
     private var dragChangeCount = 0
-    private var hoverWork: DispatchWorkItem?
     private var collapseWork: DispatchWorkItem?
     private var screen: NSScreen?
     /// The app that was in front before the prompt took focus; it gets focus back on collapse.
@@ -65,6 +64,8 @@ final class NotchController {
                 switch cmd {
                 case "expand": self.expand(); self.env.state.pinned = true
                 case "collapse": self.collapse()
+                case "loading": self.env.claude.loaded = false; self.env.spotify.loaded = false; self.expand(); self.env.state.pinned = true
+                case "draghint": self.env.state.dragHint.toggle()
                 case "drop": self.expand(); self.env.state.pinned = true; self.env.state.dropMode = true
                 case "toast":
                     self.env.state.push(Toast(symbol: "flame.fill", tint: .warning, title: "Burning 42k tokens/min", subtitle: "A lighter model (/model sonnet) costs much less"))
@@ -116,15 +117,20 @@ final class NotchController {
     private func activeRect(slack: CGFloat) -> NSRect {
         let g = env.state.geometry
         let size = NotchLayout.shapeSize(env)
+        // +edge: the cursor resting against the top of the screen reports y == top exactly,
+        // which NSRect.contains counts as outside.
         return NSRect(x: g.midX - size.width / 2 - slack, y: g.top - size.height - slack,
-                      width: size.width + slack * 2, height: size.height + slack)
+                      width: size.width + slack * 2, height: size.height + slack + Self.edge)
     }
 
     private var notchRect: NSRect {
         let g = env.state.geometry
         // A little wider and taller than the notch itself, so it's easy to hit.
-        return NSRect(x: g.midX - g.width / 2 - 10, y: g.top - g.height - 6, width: g.width + 20, height: g.height + 6)
+        return NSRect(x: g.midX - g.width / 2 - 10, y: g.top - g.height - 6, width: g.width + 20, height: g.height + 6 + Self.edge)
     }
+
+    /// Hit areas reach this far above the top of the screen (see `activeRect`).
+    private static let edge: CGFloat = 4
 
     private func mouseMoved() {
         let loc = NSEvent.mouseLocation
@@ -141,23 +147,9 @@ final class NotchController {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: w)
             }
         } else if env.settings.hoverToExpand, notchRect.contains(loc) || (st.toast != nil && inside) {
-            if hoverWork == nil {
-                if debug { NSLog("timing hover: entered notch") }
-                let w = DispatchWorkItem { [weak self] in
-                    MainActor.assumeIsolated {
-                        guard let self else { return }
-                        self.hoverWork = nil
-                        if self.notchRect.contains(NSEvent.mouseLocation) || self.activeRect(slack: 2).contains(NSEvent.mouseLocation) {
-                            self.expand()
-                        }
-                    }
-                }
-                hoverWork = w
-                // Just long enough that sweeping the cursor across the top of the screen doesn't open it.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.04, execute: w)
-            }
-        } else {
-            hoverWork?.cancel(); hoverWork = nil
+            // Open on the first event inside the notch: no hover delay.
+            if debug { NSLog("timing hover: entered notch at y=%.1f (top %.1f)", loc.y, st.geometry.top) }
+            expand()
         }
     }
 
@@ -179,6 +171,7 @@ final class NotchController {
         panel.ignoresMouseEvents = false
         let t1 = CFAbsoluteTimeGetCurrent()
         if env.spotify.running { env.spotify.refresh() }
+        env.claude.refresh()
         // EventKit queries can take a while; run them after the first frame is on screen.
         DispatchQueue.main.async { [env] in env.calendar.reload() }
         let t2 = CFAbsoluteTimeGetCurrent()
@@ -233,6 +226,7 @@ final class NotchController {
         let st = env.state
         if NSEvent.pressedMouseButtons & 1 == 0 {
             dragTimer?.invalidate(); dragTimer = nil
+            st.dragHint = false
             // The drop (or a cancelled drag) is over.
             if st.dropMode {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
@@ -250,9 +244,13 @@ final class NotchController {
               pb.types?.contains(.fileURL) == true else { return }
         let loc = NSEvent.mouseLocation
         let g = st.geometry
-        let zone = NSRect(x: g.midX - 260, y: g.top - (st.dropMode ? 300 : g.height + 70), width: 520, height: st.dropMode ? 300 : g.height + 70)
+        let depth = st.dropMode ? 300 : g.height + 90
+        let zone = NSRect(x: g.midX - 280, y: g.top - depth, width: 560, height: depth + Self.edge)
         let near = zone.contains(loc)
+        // A file drag is under way: tell people the notch takes drops.
+        if !st.isExpanded, !near, !st.dragHint { st.dragHint = true }
         if near, !st.dropMode {
+            st.dragHint = false
             st.dropMode = true
             expand()
             panel.ignoresMouseEvents = false

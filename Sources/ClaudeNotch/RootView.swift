@@ -2,8 +2,8 @@ import LedgerKit
 import SwiftUI
 
 extension Animation {
-    /// The notch's one spring: quick to open, settles without wobbling for long.
-    static let notch = Animation.spring(response: 0.32, dampingFraction: 0.8, blendDuration: 0.05)
+    /// The notch's spring: fast, with a small overshoot so it reads as "opening".
+    static let notch = Animation.spring(response: 0.3, dampingFraction: 0.74, blendDuration: 0.03)
 }
 
 struct NotchRootView: View {
@@ -18,7 +18,7 @@ struct NotchRootView: View {
         let size = NotchLayout.shapeSize(state: state, claude: claude, timer: timer, calendar: calendar, shelf: shelf)
         let expanded = state.isExpanded
         let shape = NotchShape(shoulder: NotchLayout.shoulder(expanded: expanded),
-                               bottom: expanded ? 28 : (state.toast != nil ? 20 : 10))
+                               bottom: expanded ? 28 : (state.toast != nil || state.dragHint ? 20 : 10))
         ZStack(alignment: .top) {
             ResponseGlow(active: claude.stats.isResponding, shape: shape, theme: settings.theme, expanded: expanded)
                 .frame(width: size.width, height: size.height)
@@ -28,8 +28,9 @@ struct NotchRootView: View {
                 if expanded {
                     ExpandedView()
                         .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)).animation(.easeOut(duration: 0.2)),
-                            removal: .opacity.animation(.easeOut(duration: 0.12))))
+                            // Each section animates itself in (see `Entrance`), so the container only fades.
+                            insertion: .opacity.animation(.easeOut(duration: 0.08)),
+                            removal: .opacity.animation(.easeOut(duration: 0.1))))
                 } else {
                     CollapsedView()
                         .transition(.opacity.animation(.easeInOut(duration: 0.18)))
@@ -120,7 +121,10 @@ struct CollapsedView: View {
                 }
             }
             .frame(height: g.height)
-            if let t = state.toast {
+            if state.dragHint {
+                DragHintView(theme: settings.theme)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            } else if let t = state.toast {
                 ToastView(toast: t, theme: settings.theme)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -197,6 +201,29 @@ struct ToastView: View {
                 Button(title) { action() }
                     .buttonStyle(PillButtonStyle(theme: theme, prominent: true))
             }
+        }
+        .padding(.horizontal, 22)
+        .frame(height: 50)
+    }
+}
+
+/// Slides out of the closed notch while files are being dragged anywhere on screen.
+struct DragHintView: View {
+    var theme: Theme
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.up")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(theme.gradient)
+                .phaseAnimator([0.0, -4.0]) { v, y in v.offset(y: y) } animation: { _ in .easeInOut(duration: 0.45) }
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(theme.accent.opacity(0.16)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Drop files on the notch").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white)
+                Text("AirDrop them, or keep them on the shelf").font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
+            }
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 22)
         .frame(height: 50)

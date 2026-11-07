@@ -41,12 +41,13 @@ Track, artist, artwork and progress, with previous, play/pause and next. claude-
 when Spotify is closed it shows an **Open Spotify** button instead.
 
 ### Drop zone: AirDrop and a shelf
-Drag files toward the notch and it opens into two targets:
+As soon as you start dragging files anywhere, a hint slides out of the notch. Drag them onto the notch and it opens into two targets:
 - **AirDrop** sends them to a nearby device.
 - **Shelf** holds them in the notch so you can drag them out later, into any app. Right-click a file for Open, Show in Finder, AirDrop or Remove.
 
 The shelf keeps references to your files. It never copies, moves or uploads them.
 
+<p align="center"><img src="docs/images/drag-hint.png" width="760" alt="While files are dragged, the notch says it takes drops"></p>
 <p align="center"><img src="docs/images/drop.png" width="860" alt="Dragging files over the notch shows AirDrop and Shelf targets"></p>
 <p align="center"><img src="docs/images/shelf.png" width="860" alt="Files held on the shelf, ready to drag out"></p>
 

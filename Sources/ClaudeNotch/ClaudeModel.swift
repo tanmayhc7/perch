@@ -7,6 +7,8 @@ final class ClaudeModel {
     var stats = ClaudeStats()
     /// token-meter has written a ledger on this Mac.
     var ledgerFound = true
+    /// The ledger has been read at least once.
+    var loaded = false
 
     @ObservationIgnored var onAlert: ((Toast) -> Void)?
     @ObservationIgnored var finishAlertsEnabled: () -> Bool = { true }
@@ -48,6 +50,7 @@ final class ClaudeModel {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self.ledgerFound = found
+                    if !self.loaded { self.loaded = true }
                     if s != self.stats { self.stats = s }
                     self.checkAlerts(s, now: now)
                     self.first = false

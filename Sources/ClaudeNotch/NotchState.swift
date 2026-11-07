@@ -52,6 +52,8 @@ final class NotchState {
     var mode: Mode = .collapsed
     /// Files are being dragged near the notch.
     var dropMode = false
+    /// Files are being dragged somewhere on screen: the closed notch says it takes drops.
+    var dragHint = false
     var toast: Toast?
     private var queue: [Toast] = []
     /// Keeps the notch open (the prompt field has focus, a menu is open, an answer is showing).

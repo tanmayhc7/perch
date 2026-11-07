@@ -21,6 +21,9 @@ final class SpotifyModel {
     /// macOS refused the Apple Events permission.
     var permissionDenied = false
 
+    /// Spotify has answered at least once since it was found running.
+    var loaded = false
+
     var hasTrack: Bool { running && !title.isEmpty }
 
     @ObservationIgnored private var artworkURL = ""
@@ -61,6 +64,7 @@ final class SpotifyModel {
             installed = true
             refresh()
         } else {
+            loaded = false
             playing = false
             title = ""
             artist = ""
@@ -80,7 +84,9 @@ final class SpotifyModel {
     func refresh() {
         guard running else { return }
         run(Self.readScript) { [weak self] out in
-            guard let self, let out else { return }
+            guard let self else { return }
+            self.loaded = true
+            guard let out else { return }
             let p = out.components(separatedBy: "\n")
             guard p.count >= 7 else { return }
             self.playing = p[0] == "playing"
