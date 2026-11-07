@@ -148,4 +148,4 @@ Notarizing needs a paid Apple Developer account. When one is available, the rele
 
 ## Credits
 Made by [@tanmayhc7](https://github.com/tanmayhc7). claude-notch is an independent project and isn't affiliated with or
-endorsed by Anthropic or Spotify. Released under the [MIT License](LICENSE).
+endorsed by Anthropic or Spotify. Copyright © 2026 Tanmay Chandavarkar. Released under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0): you can use, change and share it, but if you distribute a modified version, or run one for others over a network, you must publish its source under the same license.
