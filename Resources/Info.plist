@@ -14,7 +14,7 @@
     <key>LSUIElement</key><true/>
     <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
     <key>NSHighResolutionCapable</key><true/>
-    <key>NSAppleEventsUsageDescription</key><string>Perch shows what's playing in Spotify and lets you play, pause and skip from the notch.</string>
+    <key>NSAppleEventsUsageDescription</key><string>Perch shows what's playing in Spotify or Apple Music and lets you play, pause and skip from the notch.</string>
     <key>NSCalendarsFullAccessUsageDescription</key><string>Perch shows your next meeting and a Join button. Calendar data stays on your Mac.</string>
     <key>NSCalendarsUsageDescription</key><string>Perch shows your next meeting and a Join button. Calendar data stays on your Mac.</string>
     <key>NSHumanReadableCopyright</key><string>Copyright © 2026 Tanmay Chandavarkar. AGPL-3.0 license.</string>

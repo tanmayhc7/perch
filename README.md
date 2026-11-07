@@ -6,13 +6,13 @@
 
 <p align="center">
 Your MacBook's notch, turned into a live Claude Code dashboard,<br>
-a Spotify remote, an AirDrop and file shelf, and a one-line Claude prompt.
+a Spotify and Apple Music remote, an AirDrop and file shelf, and a one-line Claude prompt.
 </p>
 
-<p align="center"><a href="docs/media/perch.mp4"><img src="docs/media/perch.gif" width="860" alt="Perch in 23 seconds: the notch lights up while Claude responds, springs open into a dashboard of tokens, burn rate and budget, slides out a budget alert, answers a question typed into the Ask Claude bar, and takes a dropped file for AirDrop or the shelf"></a><br>
-<sub>▶ <a href="docs/media/perch.mp4">Watch with sound</a> (23 s)</sub></p>
+<p align="center"><a href="docs/media/perch.mp4"><img src="docs/media/perch.gif" width="860" alt="Perch in 25 seconds: the notch lights up while Claude responds, springs open into a dashboard of tokens, burn rate and budget, slides out a budget alert, answers a question typed into the Ask Claude bar, takes a dropped file for AirDrop or the shelf, swipes from Spotify to Apple Music, and recolours itself to match three wallpapers"></a><br>
+<sub>▶ <a href="docs/media/perch.mp4">Watch with sound</a> (25 s)</sub></p>
 
-<p align="center"><img src="docs/images/expanded-ember.png" width="860" alt="Perch open: Claude Code usage with a budget ring, Spotify now playing, the next meeting with a Join button, a focus timer and an Ask Claude bar"></p>
+<p align="center"><img src="docs/images/expanded-ember.png" width="860" alt="Perch open: Claude Code usage with a budget ring, music now playing, the next meeting with a Join button, a focus timer and an Ask Claude bar"></p>
 
 Perch sits in the notch and stays out of the way. Point at the notch and it springs open. While a Claude Code
 session is responding, the notch glows softly so you can see it's working from any app.
@@ -41,9 +41,13 @@ it's the cheapest. The cost of each answer is shown next to it.
 
 <p align="center"><img src="docs/images/answer.png" width="860" alt="An answer from Claude streamed into the notch"></p>
 
-### Spotify
-Track, artist, artwork and progress, with previous, play/pause and next. Perch never opens Spotify by itself;
-when Spotify is closed it shows an **Open Spotify** button instead.
+### Spotify and Apple Music
+Track, artist, artwork and progress, with previous, play/pause and next. Spotify and Apple Music share one tile:
+**swipe sideways with two fingers** (or click the dots in the corner) to switch, and the tile turns to whichever
+app starts playing on its own. Perch never opens either app by itself; when one is closed its page shows an
+**Open** button instead.
+
+<p align="center"><img src="docs/images/music.png" width="860" alt="The music tile showing Apple Music, with page dots in its corner for switching back to Spotify"></p>
 
 ### Drop zone: AirDrop and a shelf
 As soon as you start dragging files anywhere, a hint slides out of the notch. Drag them onto the notch and it opens into two targets:
@@ -65,7 +69,19 @@ requested when you click **Show my calendar**.
 25, 50 or 5 minutes. The countdown ring sits beside the closed notch, and a chime plus a slide-out tell you when it's done.
 
 ### Themes
-Three themes from the **⋯** menu: **Ember** (above), **Aurora** and **Graphite**.
+**Auto** (the default) takes its colours from your wallpaper, so the glow, rings and buttons match your desktop.
+It picks the strongest colours in the strip of wallpaper behind the menu bar and brightens them to glow on black,
+and it follows you when you change wallpapers or switch to a Space with a different one. It reads the wallpaper file
+only, so it needs no Screen Recording permission. For a dynamic or aerial wallpaper with no picture file, it uses
+your Mac's accent colour.
+
+<p align="center">
+<img src="docs/images/auto-sunset.png" width="280" alt="Auto theme on a sunset wallpaper: orange accents">
+<img src="docs/images/auto-ocean.png" width="280" alt="Auto theme on an ocean wallpaper: blue accents">
+<img src="docs/images/auto-forest.png" width="280" alt="Auto theme on a forest wallpaper: green accents">
+</p>
+
+Or pick a fixed theme from the **⋯** menu: **Ember** (above), **Aurora** or **Graphite**.
 
 <p align="center">
 <img src="docs/images/expanded-aurora.png" width="420" alt="Aurora theme">
@@ -94,9 +110,10 @@ There's no Dock icon. To quit, open the notch and choose **⋯ → Quit Perch**.
 | When | Permission | Why |
 | --- | --- | --- |
 | First time Spotify is open | Automation → Spotify | To read the current track and play, pause and skip |
+| First time Apple Music is open | Automation → Music | The same, for Apple Music |
 | You click **Show my calendar** | Calendars | To show your next meeting |
 
-You can turn either off in **System Settings → Privacy & Security** at any time.
+You can turn any of these off in **System Settings → Privacy & Security** at any time.
 
 ## Build from source
 
@@ -121,7 +138,7 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 | --- | --- |
 | `Sources/LedgerKit` | Reads token-meter's ledger and computes the stats. No UI code, so a menu-bar app or CLI can reuse it. |
 | `Sources/Perch/NotchController.swift` | The borderless panel over the notch, hover and drag detection |
-| `Sources/Perch/*Model*.swift` | Claude, Spotify, shelf, calendar, timer and prompt models |
+| `Sources/Perch/*Model*.swift` | Claude, music players, shelf, calendar, timer and prompt models; `AutoPalette.swift` picks the Auto theme's colours |
 | `Sources/Perch/RootView.swift`, `ExpandedView.swift` | The SwiftUI views |
 | `scripts/build-app.sh` | Builds a universal `.app` and the release zip with SwiftPM only |
 
@@ -129,7 +146,8 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 - Everything stays on your Mac. Perch has no analytics, no telemetry and no server.
 - It reads `~/.claude/token-meter/` (written by token-meter). It never reads your Claude Code conversations.
 - Questions you type into the notch are sent to Anthropic by your own `claude` command, exactly as if you ran `claude -p` in Terminal, and they use your Claude Code plan or API credits.
-- Spotify artwork is downloaded from Spotify's image servers. Nothing is sent to Spotify beyond what its own app already does.
+- Spotify artwork is downloaded from Spotify's image servers. Nothing is sent to Spotify beyond what its own app already does. Apple Music artwork comes straight from the Music app.
+- The Auto theme reads your wallpaper file on your Mac to pick colours. It doesn't capture your screen. If your wallpaper is in Desktop, Documents or Downloads, it's only read after you choose **Auto** in the menu yourself, because macOS asks permission for those folders.
 - Calendar events are read on your Mac with Apple's EventKit and never leave it.
 - Files on the shelf are only referenced, never copied or uploaded. AirDrop uses macOS's own AirDrop sheet.
 
@@ -153,4 +171,4 @@ Notarizing needs a paid Apple Developer account. When one is available, the rele
 
 ## Credits
 Made by [@tanmayhc7](https://github.com/tanmayhc7). Perch is an independent project and isn't affiliated with or
-endorsed by Anthropic or Spotify. Copyright © 2026 Tanmay Chandavarkar. Released under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0): you can use, change and share it, but if you distribute a modified version, or run one for others over a network, you must publish its source under the same license.
+endorsed by Anthropic, Spotify or Apple. Copyright © 2026 Tanmay Chandavarkar. Released under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0): you can use, change and share it, but if you distribute a modified version, or run one for others over a network, you must publish its source under the same license.

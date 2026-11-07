@@ -8,7 +8,7 @@ import SwiftUI
 enum Snapshots {
     static func render(to dir: URL) {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        for theme in Theme.allCases {
+        for theme in Theme.allCases where theme != .auto {
             shot(dir, "expanded-\(theme.rawValue)", theme: theme) { env in env.state.mode = .expanded }
         }
         shot(dir, "collapsed-responding", theme: .ember, height: 120) { env in
@@ -35,6 +35,15 @@ enum Snapshots {
             env.shelf.add([URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"),
                            URL(fileURLWithPath: "/Library/Desktop Pictures"),
                            URL(fileURLWithPath: "/etc/hosts")])
+        }
+        shot(dir, "music", theme: .ember) { env in
+            env.state.mode = .expanded
+            env.media.selectedID = "music"
+        }
+        for wp in SampleWallpaper.all {
+            let img = wp.image()
+            AutoPalette.shared.set(from: img)
+            shot(dir, "auto-\(wp.name)", theme: .auto, background: img) { env in env.state.mode = .expanded }
         }
         print("Wrote snapshots to \(dir.path)")
     }
@@ -64,21 +73,33 @@ enum Snapshots {
                 env.prompt.costUSD = 0.0012
             }),
             ("drop", .ember, { env in env.state.mode = .expanded; env.state.dropMode = true }),
+            ("expanded-music", .ember, { env in env.state.mode = .expanded; env.media.selectedID = "music" }),
             ("shelf", .ember, { env in
                 env.state.mode = .expanded
                 env.shelf.add([URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"),
                                URL(fileURLWithPath: "/Library/Desktop Pictures"), URL(fileURLWithPath: "/etc/hosts")])
             }),
         ]
-        for (name, theme, setup) in states {
+        func bare(_ name: String, _ theme: Theme, _ setup: (AppEnvironment) -> Void) {
             let env = sampleEnv(theme: theme)
             setup(env)
             let view = NotchRootView().notchEnvironment(env).environment(\.snapshotMode, true).frame(width: 820, height: 330)
             let r = ImageRenderer(content: view)
             r.scale = 3
             guard let img = r.nsImage, let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
-                  let png = rep.representation(using: .png, properties: [:]) else { continue }
+                  let png = rep.representation(using: .png, properties: [:]) else { return }
             try? png.write(to: dir.appendingPathComponent("\(name).png"))
+        }
+        for (name, theme, setup) in states { bare(name, theme, setup) }
+        // Auto theme: each sample wallpaper (saved alongside, for the video's background) and the notch it colours.
+        for wp in SampleWallpaper.all {
+            let img = wp.image()
+            if let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+               let png = rep.representation(using: .png, properties: [:]) {
+                try? png.write(to: dir.appendingPathComponent("wall-\(wp.name).png"))
+            }
+            AutoPalette.shared.set(from: img)
+            bare("auto-\(wp.name)", .auto) { env in env.state.mode = .expanded }
         }
         print("Wrote bare snapshots to \(dir.path)")
     }
@@ -87,7 +108,7 @@ enum Snapshots {
         let settings = AppSettings(persist: false)
         settings.theme = theme
         let state = NotchState(geometry: NotchGeometry(width: 185, height: 32, hasNotch: true, midX: 0, top: 0))
-        let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), spotify: SpotifyModel(),
+        let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)], persist: false),
                                  shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel())
         let now = Date()
         func req(_ minsAgo: Double, _ counted: Double) -> LedgerRequest {
@@ -111,18 +132,35 @@ enum Snapshots {
         env.spotify.positionAtRead = 83
         env.spotify.positionAt = now
         env.spotify.artwork = sampleArtwork()
+        let music = env.media.players[1]
+        music.loaded = true
+        music.installed = true
+        music.running = true
+        music.playing = true
+        music.title = "Golden Hour"
+        music.artist = "Neon Harbor"
+        music.duration = 187
+        music.positionAtRead = 41
+        music.positionAt = now
+        music.artwork = sampleArtwork(colors: [NSColor(red: 0.20, green: 0.75, blue: 0.70, alpha: 1), NSColor(red: 0.10, green: 0.20, blue: 0.55, alpha: 1)])
+        env.media.selectedID = "spotify"
         env.calendar.access = .fullAccess
         env.calendar.next = .init(title: "Design review", start: now.addingTimeInterval(7 * 60 + 20), end: now.addingTimeInterval(40 * 60),
                                   joinURL: URL(string: "https://meet.google.com/abc-defg-hij"), color: .systemPurple)
         return env
     }
 
-    private static func shot(_ dir: URL, _ name: String, theme: Theme, height: CGFloat = 390, setup: (AppEnvironment) -> Void) {
+    private static func shot(_ dir: URL, _ name: String, theme: Theme, height: CGFloat = 390, background: NSImage? = nil,
+                             setup: (AppEnvironment) -> Void) {
         let env = sampleEnv(theme: theme)
         setup(env)
         let width: CGFloat = 900
         let view = ZStack(alignment: .top) {
-            Wallpaper(theme: theme)
+            if let background {
+                Image(nsImage: background).resizable().scaledToFill().frame(width: width, height: height, alignment: .top).clipped()
+            } else {
+                Wallpaper(theme: theme)
+            }
             MenuBarStrip(height: env.state.geometry.height)
             NotchRootView().notchEnvironment(env).environment(\.snapshotMode, true).frame(width: 820, height: height - 4)
         }
@@ -134,15 +172,59 @@ enum Snapshots {
         try? png.write(to: dir.appendingPathComponent("\(name).png"))
     }
 
-    static func sampleArtwork() -> NSImage {
+    static func sampleArtwork(colors: [NSColor] = [NSColor(red: 0.98, green: 0.42, blue: 0.30, alpha: 1),
+                                                   NSColor(red: 0.30, green: 0.18, blue: 0.62, alpha: 1)]) -> NSImage {
         let size = NSSize(width: 300, height: 300)
         return NSImage(size: size, flipped: false) { r in
-            NSGradient(colors: [NSColor(red: 0.98, green: 0.42, blue: 0.30, alpha: 1), NSColor(red: 0.30, green: 0.18, blue: 0.62, alpha: 1)])?
+            NSGradient(colors: colors)?
                 .draw(in: r, angle: -55)
             NSColor.white.withAlphaComponent(0.85).setFill()
             NSBezierPath(ovalIn: NSRect(x: 95, y: 95, width: 110, height: 110)).fill()
             NSColor(red: 0.18, green: 0.10, blue: 0.30, alpha: 1).setFill()
             NSBezierPath(ovalIn: NSRect(x: 135, y: 135, width: 30, height: 30)).fill()
+            return true
+        }
+    }
+}
+
+/// Drawn wallpapers for showing the Auto theme (no photos to license).
+struct SampleWallpaper {
+    var name: String
+    var sky: [NSColor]
+    var sun: NSColor?
+    var hills: [NSColor]
+
+    static let all = [
+        SampleWallpaper(name: "sunset", sky: [rgb(0.99, 0.62, 0.28), rgb(0.93, 0.33, 0.42), rgb(0.36, 0.16, 0.42)],
+                        sun: rgb(1, 0.86, 0.55), hills: [rgb(0.30, 0.10, 0.30), rgb(0.16, 0.06, 0.20)]),
+        SampleWallpaper(name: "ocean", sky: [rgb(0.36, 0.86, 0.90), rgb(0.12, 0.52, 0.80), rgb(0.05, 0.16, 0.42)],
+                        sun: nil, hills: [rgb(0.04, 0.30, 0.52), rgb(0.02, 0.14, 0.30)]),
+        SampleWallpaper(name: "forest", sky: [rgb(0.72, 0.92, 0.52), rgb(0.26, 0.66, 0.40), rgb(0.07, 0.26, 0.20)],
+                        sun: rgb(0.96, 1, 0.80), hills: [rgb(0.08, 0.36, 0.22), rgb(0.03, 0.18, 0.12)]),
+    ]
+
+    private static func rgb(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> NSColor { NSColor(srgbRed: r, green: g, blue: b, alpha: 1) }
+
+    /// 1920x1080: a sky gradient (top colour first), an optional sun, two rolling hills.
+    func image() -> NSImage {
+        NSImage(size: NSSize(width: 1920, height: 1080), flipped: true) { r in
+            NSGradient(colors: sky)?.draw(in: r, angle: 90)
+            if let sun {
+                sun.withAlphaComponent(0.9).setFill()
+                NSBezierPath(ovalIn: NSRect(x: 1180, y: 520, width: 260, height: 260)).fill()
+            }
+            for (i, c) in hills.enumerated() {
+                let p = NSBezierPath()
+                let base = 760 + CGFloat(i) * 110
+                p.move(to: NSPoint(x: 0, y: 1080))
+                p.line(to: NSPoint(x: 0, y: base))
+                p.curve(to: NSPoint(x: 1920, y: base - 40), controlPoint1: NSPoint(x: 640, y: base - 190 + CGFloat(i) * 60),
+                        controlPoint2: NSPoint(x: 1280, y: base + 120 - CGFloat(i) * 90))
+                p.line(to: NSPoint(x: 1920, y: 1080))
+                p.close()
+                c.setFill()
+                p.fill()
+            }
             return true
         }
     }
