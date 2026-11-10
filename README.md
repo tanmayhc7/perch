@@ -83,8 +83,10 @@ start or resume and out when you pause, stop or finish; breaks stay quiet. If Sp
 pauses it first. The music gets its own page in the music tile, next to Spotify and Apple Music, where you can pause it
 or stop it for the rest of the session while the timer keeps going.
 
-YouTube plays in a hidden web page inside Perch, so it needs a connection and YouTube's ads still play (Perch presses
-Skip when YouTube offers it).
+YouTube needs a connection. If [Brave](https://brave.com) is installed, the video plays in a private, headless Brave
+(its own profile, no window or Dock icon) whose Shields block YouTube's ads; otherwise it plays in a hidden web page
+inside Perch, where ads still play (Perch presses Skip when YouTube offers it). The hidden page closes when the timer
+ends, after two minutes paused (resuming reopens it where it was), and on its own if Perch quits unexpectedly.
 
 ### Themes
 **Auto** (the default) takes its colours from your wallpaper, so the open notch blends into your desktop: it stays

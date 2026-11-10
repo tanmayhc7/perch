@@ -66,6 +66,8 @@ struct AppEnvironment {
         env.timer.onPaused = { [weak music = env.music] in music?.pause() }
         env.timer.onEnded = { [weak focus = env.focus, weak music = env.music] in focus?.finish(); music?.end() }
         env.music.onAlert = { [weak state] t in state?.push(t) }
+        // A Brave left playing YouTube focus music by a crash: end it.
+        BravePage.sweep()
         // Don't play on top of Spotify or Apple Music.
         env.music.onWillPlay = { [weak media = env.media] in
             media?.players.filter(\.playing).forEach { $0.playPause() }

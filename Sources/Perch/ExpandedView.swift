@@ -353,7 +353,7 @@ struct FocusMusicPage: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(music.title ?? "Focus music").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(music.isYouTube ? "YouTube" : "Focus music")
+                    Text(music.isYouTube ? (music.youTubeEngine == "Brave" ? "YouTube · via Brave" : "YouTube") : "Focus music")
                         .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
                 }
                 .padding(.trailing, paged ? 16 : 0)

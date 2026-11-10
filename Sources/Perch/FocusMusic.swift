@@ -34,6 +34,8 @@ final class FocusMusic {
         }
     }
     var isYouTube: Bool { if case .youtube = source { true } else { false } }
+    /// Where YouTube plays: Brave (ad-free) when it's installed, else Perch's own web view.
+    var youTubeEngine: String { youtube?.engine ?? (BravePage.executable() != nil ? "Brave" : "Perch") }
 
     @ObservationIgnored var onAlert: ((Toast) -> Void)?
     /// Called when focus music starts: pauses Spotify or Music instead of playing on top, and turns the tile to this page.
