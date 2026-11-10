@@ -9,7 +9,7 @@ Your MacBook's notch, turned into a live Claude Code dashboard,<br>
 a Spotify and Apple Music remote, an AirDrop and file shelf, and a one-line Claude prompt.
 </p>
 
-<p align="center"><a href="docs/media/perch.mp4"><img src="docs/media/perch.gif" width="860" alt="Perch in 25 seconds: the notch lights up while Claude responds, springs open into a dashboard of tokens, burn rate and budget, slides out a budget alert, answers a question typed into the Ask Claude bar, takes a dropped file for AirDrop or the shelf, swipes from Spotify to Apple Music, and recolours itself to match three wallpapers"></a><br>
+<p align="center"><a href="docs/media/perch.mp4"><img src="docs/media/perch.gif" width="860" alt="Perch in 25 seconds: the notch lights up while Claude responds, springs open into a dashboard of tokens, burn rate and budget, answers a question typed into the Ask Claude bar, takes a dropped file for AirDrop or the shelf, swipes from Spotify to Apple Music, starts a 25-minute focus timer whose YouTube focus music takes over the music tile, then turns from the Auto theme to clear Glass with a sunset showing through"></a><br>
 <sub>▶ <a href="docs/media/perch.mp4">Watch with sound</a> (25 s)</sub></p>
 
 <p align="center"><img src="docs/images/expanded-ember.png" width="860" alt="Perch open: Claude Code usage with a budget ring, music now playing, the next meeting with a Join button, a focus timer and an Ask Claude bar"></p>

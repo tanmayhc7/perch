@@ -87,7 +87,18 @@ enum Snapshots {
                 env.shelf.add([URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"),
                                URL(fileURLWithPath: "/Library/Desktop Pictures"), URL(fileURLWithPath: "/etc/hosts")])
             }),
+            // A focus timer starts and its music takes over the music tile.
+            ("focus-start", .ember, { env in focusMusic(env); env.media.selectedID = "spotify" }),
+            ("focus-music", .ember, { env in focusMusic(env); env.media.selectedID = FocusMusic.pageID }),
         ]
+        func focusMusic(_ env: AppEnvironment) {
+            env.state.mode = .expanded
+            env.timer.start(minutes: 25, label: "Focus")
+            env.spotify.playing = false
+            env.music.preview(.youtube(id: "sample", title: "Rainy café jazz · 3 hours of focus music"),
+                              artwork: sampleArtwork(colors: [NSColor(red: 0.85, green: 0.45, blue: 0.25, alpha: 1),
+                                                              NSColor(red: 0.30, green: 0.12, blue: 0.35, alpha: 1)]))
+        }
         func bare(_ name: String, _ theme: Theme, _ setup: (AppEnvironment) -> Void) {
             let env = sampleEnv(theme: theme)
             setup(env)
@@ -108,6 +119,12 @@ enum Snapshots {
             }
             AutoPalette.shared.set(from: img)
             bare("auto-\(wp.name)", .auto) { env in env.state.mode = .expanded }
+            // Glass: the snapshot can't see behind the window, so the video draws the blur behind this.
+            // Quiet (not responding): the response glow would shine through the glass and tint it.
+            bare("glass-\(wp.name)", .glass) { env in
+                env.state.mode = .expanded
+                env.claude.stats.sessions = env.claude.stats.sessions.map { var x = $0; if x.state == .responding { x.state = .active }; return x }
+            }
         }
         print("Wrote bare snapshots to \(dir.path)")
     }
