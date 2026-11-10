@@ -98,6 +98,7 @@ struct HeaderRow: View {
 struct SettingsMenu: View {
     @Environment(AppSettings.self) private var settings
     @Environment(FocusLink.self) private var focus
+    @Environment(FocusMusic.self) private var music
     @Environment(NotchState.self) private var state
     @Environment(\.snapshotMode) private var snapshot
 
@@ -113,6 +114,11 @@ struct SettingsMenu: View {
                 settings.focusDND = on
                 if on { focus.enable() }
             }))
+            Menu(music.title.map { "Focus music: \($0)" } ?? "Focus music") {
+                Button("Choose a file…") { music.chooseFile() }
+                Button("Use a YouTube link…") { music.chooseYouTube() }
+                if music.source != nil { Divider(); Button("No focus music") { music.remove() } }
+            }
             Toggle("Open at login", isOn: $s.launchAtLogin)
             Divider()
             Button("Perch on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/tanmayhc7/perch")!) }
@@ -260,19 +266,29 @@ struct ClaudeTile: View {
 /// It turns to whichever app starts playing.
 struct MusicTile: View {
     @Environment(MediaHub.self) private var media
+    @Environment(FocusMusic.self) private var music
     @Environment(\.snapshotMode) private var snapshot
 
+    /// A page in the tile: a music app, or the focus music once one is chosen.
+    private enum Page: Identifiable {
+        case player(PlayerModel)
+        case focus
+        var id: String { if case .player(let p) = self { p.id } else { FocusMusic.pageID } }
+        var name: String { if case .player(let p) = self { p.source.name } else { "Focus music" } }
+    }
+
     var body: some View {
-        let pages = media.visible
+        let pages: [Page] = media.visible.map { .player($0) } + (music.source != nil ? [.focus] : [])
+        let selected = pages.first { $0.id == media.selectedID } ?? pages[0]
         Tile(padding: 0) {
             ZStack(alignment: .topTrailing) {
                 if snapshot || pages.count < 2 {
-                    PlayerPage(player: media.selected, paged: pages.count > 1)
+                    page(selected, paged: pages.count > 1)
                 } else {
                     ScrollView(.horizontal) {
                         LazyHStack(spacing: 0) {
                             ForEach(pages) { p in
-                                PlayerPage(player: p, paged: true)
+                                page(p, paged: true)
                                     .containerRelativeFrame(.horizontal)
                                     .id(p.id)
                             }
@@ -281,10 +297,10 @@ struct MusicTile: View {
                     }
                     .scrollTargetBehavior(.paging)
                     .scrollIndicators(.never)
-                    .scrollPosition(id: Binding<String?>(get: { media.selectedID }, set: { if let v = $0 { media.selectedID = v } }))
+                    .scrollPosition(id: Binding<String?>(get: { selected.id }, set: { if let v = $0 { media.selectedID = v } }))
                 }
                 if pages.count > 1 {
-                    PageDots(pages: pages, selected: media.selected.id) { id in
+                    PageDots(pages: pages.map { ($0.id, $0.name) }, selected: selected.id) { id in
                         withAnimation(.notch) { media.selectedID = id }
                     }
                     .padding(.top, 9).padding(.trailing, 10)
@@ -292,27 +308,114 @@ struct MusicTile: View {
             }
         }
     }
+
+    @ViewBuilder private func page(_ p: Page, paged: Bool) -> some View {
+        switch p {
+        case .player(let player): PlayerPage(player: player, paged: paged)
+        case .focus: FocusMusicPage(paged: paged)
+        }
+    }
 }
 
-/// Which music app the tile shows. Click a dot to jump to it.
+/// Which page the tile shows. Click a dot to jump to it.
 private struct PageDots: View {
-    var pages: [PlayerModel]
+    var pages: [(id: String, name: String)]
     var selected: String
     var pick: (String) -> Void
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(pages) { p in
+            ForEach(pages, id: \.id) { p in
                 Capsule()
                     .fill(.white.opacity(p.id == selected ? 0.85 : 0.25))
                     .frame(width: p.id == selected ? 12 : 5, height: 5)
                     .contentShape(Rectangle().inset(by: -4))
                     .onTapGesture { pick(p.id) }
-                    .help(p.source.name)
+                    .help(p.name)
             }
         }
         .animation(.notch, value: selected)
-        .help("Swipe sideways to switch between Spotify and Apple Music")
+        .help("Swipe sideways to switch between \(pages.map(\.name).formatted(.list(type: .or)))")
+    }
+}
+
+/// The focus music's page in the tile: what plays, and play/pause and stop while a focus timer runs.
+struct FocusMusicPage: View {
+    var paged = false
+    @Environment(FocusMusic.self) private var music
+    @Environment(AppSettings.self) private var settings
+
+    var body: some View {
+        let theme = settings.theme
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                artwork.frame(width: 54, height: 54)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(music.title ?? "Focus music").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(music.isYouTube ? "YouTube" : "Focus music")
+                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
+                }
+                .padding(.trailing, paged ? 16 : 0)
+                Spacer(minLength: 0)
+            }
+            Text(status).font(.system(size: 10.5, weight: .medium)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
+            Spacer(minLength: 0)
+            HStack(spacing: 14) {
+                Spacer(minLength: 0)
+                if music.inSession {
+                    IconButton(symbol: music.playing ? "pause.fill" : "play.fill", size: 32, filled: true, theme: theme,
+                               help: music.playing ? "Pause the music (the timer keeps going)" : "Play the music") { music.toggleMute() }
+                        .disabled(!music.timerRunning)
+                        .opacity(music.timerRunning ? 1 : 0.4)
+                    IconButton(symbol: "stop.fill", size: 26, help: "Stop the music for this focus session") { music.stopForSession() }
+                        .disabled(music.muted && !music.playing)
+                        .opacity(music.muted && !music.playing ? 0.4 : 1)
+                } else {
+                    Menu {
+                        Button("Choose a file…") { music.chooseFile() }
+                        Button("Use a YouTube link…") { music.chooseYouTube() }
+                        Divider()
+                        Button("No focus music") { music.remove() }
+                    } label: {
+                        Text("Change").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(Capsule().fill(.white.opacity(0.1)))
+                    }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            Color.clear.overlay {
+                if let art = music.artwork {
+                    Image(nsImage: art).resizable().scaledToFill().blur(radius: 30).opacity(music.playing ? 0.38 : 0.2).saturation(1.4)
+                }
+            }
+            .clipped()
+        )
+    }
+
+    private var status: String {
+        if !music.inSession { return "Plays during 25 and 50 min focus timers" }
+        if music.playing { return music.isYouTube ? "Playing until the timer ends" : "Looping until the timer ends" }
+        if !music.timerRunning { return "Paused with the timer" }
+        return "Stopped for this session"
+    }
+
+    @ViewBuilder private var artwork: some View {
+        if let art = music.artwork {
+            Image(nsImage: art).resizable().scaledToFill()
+                .frame(width: 54, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+        } else {
+            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.08))
+                .overlay(Image(systemName: music.isYouTube ? "play.rectangle.fill" : "music.note").foregroundStyle(.white.opacity(0.4)))
+        }
     }
 }
 
@@ -477,6 +580,7 @@ struct MeetingTile: View {
 struct TimerTile: View {
     @Environment(FocusTimer.self) private var timer
     @Environment(FocusLink.self) private var focus
+    @Environment(FocusMusic.self) private var music
     @Environment(AppSettings.self) private var settings
 
     var body: some View {
@@ -495,19 +599,26 @@ struct TimerTile: View {
                 }
             } else {
                 TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                    HStack(spacing: 8) {
-                        ProgressRing(progress: timer.progress(at: ctx.date), theme: theme, lineWidth: 3.5).frame(width: 30, height: 30)
+                    HStack(spacing: 6) {
+                        ProgressRing(progress: timer.progress(at: ctx.date), theme: theme, lineWidth: 3.5).frame(width: 28, height: 28)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(FocusTimer.format(timer.remaining(at: ctx.date)))
                                 .font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit()).foregroundStyle(.white)
+                                .lineLimit(1).fixedSize()
                             HStack(spacing: 3) {
                                 if focus.active {
                                     Image(systemName: "moon.fill").font(.system(size: 8)).foregroundStyle(theme.gradient)
                                         .help("Do Not Disturb is on until the timer ends")
                                 }
+                                if music.playing {
+                                    Image(systemName: "music.note").font(.system(size: 8.5, weight: .semibold)).foregroundStyle(theme.gradient)
+                                        .help("\(music.title ?? "Focus music") is playing; pause or stop it in the music tile")
+                                }
                                 Text(timer.phase == .paused ? "Paused" : timer.label).font(.system(size: 9.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
+                                    .lineLimit(1)
                             }
                         }
+                        .layoutPriority(1)
                         Spacer(minLength: 0)
                         IconButton(symbol: timer.phase == .paused ? "play.fill" : "pause.fill", size: 22) { timer.toggle() }
                         IconButton(symbol: "xmark", size: 22) { timer.stop() }

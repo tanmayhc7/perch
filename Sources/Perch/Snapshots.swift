@@ -40,6 +40,13 @@ enum Snapshots {
             env.state.mode = .expanded
             env.media.selectedID = "music"
         }
+        shot(dir, "focus-music", theme: .ember) { env in
+            env.state.mode = .expanded
+            env.timer.start(minutes: 25, label: "Focus")
+            env.music.preview(.youtube(id: "sample", title: "Rainy café jazz · 3 hours of focus music"),
+                              artwork: sampleArtwork(colors: [NSColor(red: 0.85, green: 0.45, blue: 0.25, alpha: 1), NSColor(red: 0.30, green: 0.12, blue: 0.35, alpha: 1)]))
+            env.media.selectedID = FocusMusic.pageID
+        }
         for wp in SampleWallpaper.all {
             let img = wp.image()
             AutoPalette.shared.set(from: img)
@@ -109,7 +116,8 @@ enum Snapshots {
         settings.theme = theme
         let state = NotchState(geometry: NotchGeometry(width: 185, height: 32, hasNotch: true, midX: 0, top: 0))
         let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)], persist: false),
-                                 shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(defaults: UserDefaults(suiteName: "perch.snapshots")!))
+                                 shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(defaults: UserDefaults(suiteName: "perch.snapshots")!),
+                                 music: FocusMusic(defaults: UserDefaults(suiteName: "perch.snapshots")!))
         let now = Date()
         func req(_ minsAgo: Double, _ counted: Double) -> LedgerRequest {
             LedgerRequest(ts: now.addingTimeInterval(-minsAgo * 60), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, usd: counted / 220_000, counted: counted)

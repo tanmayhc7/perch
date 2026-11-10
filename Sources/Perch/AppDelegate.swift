@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         env?.prompt.cancel()
         // Nor Do Not Disturb on with no timer to turn it off.
         env?.focus.finishBeforeQuit()
+        env?.music.stopBeforeQuit()
     }
 }
 
@@ -42,6 +43,7 @@ struct AppEnvironment {
     let timer: FocusTimer
     let prompt: PromptModel
     let focus: FocusLink
+    let music: FocusMusic
 
     var spotify: PlayerModel { media.players[0] }
 
@@ -49,7 +51,7 @@ struct AppEnvironment {
         let settings = AppSettings()
         let state = NotchState(geometry: NotchGeometry.detect().geometry)
         let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)]),
-                                 shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink())
+                                 shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(), music: FocusMusic())
         env.claude.onAlert = { [weak state] t in state?.push(t) }
         env.claude.finishAlertsEnabled = { settings.finishAlerts }
         env.calendar.onAlert = { [weak state] t in state?.push(t) }
@@ -57,8 +59,18 @@ struct AppEnvironment {
         ShelfModel.onProblem = { [weak state] t in state?.push(t) }
         env.focus.onAlert = { [weak state] t in state?.push(t) }
         env.focus.isEnabled = { settings.focusDND }
-        env.timer.onBegan = { [weak focus = env.focus] end in focus?.begin(endsAt: end) }
-        env.timer.onEnded = { [weak focus = env.focus] in focus?.finish() }
+        env.timer.onBegan = { [weak focus = env.focus, weak music = env.music, weak timer = env.timer] end in
+            focus?.begin(endsAt: end)
+            music?.begin(label: timer?.label ?? "Focus")
+        }
+        env.timer.onPaused = { [weak music = env.music] in music?.pause() }
+        env.timer.onEnded = { [weak focus = env.focus, weak music = env.music] in focus?.finish(); music?.end() }
+        env.music.onAlert = { [weak state] t in state?.push(t) }
+        // Don't play on top of Spotify or Apple Music.
+        env.music.onWillPlay = { [weak media = env.media] in
+            media?.players.filter(\.playing).forEach { $0.playPause() }
+            media?.selectedID = FocusMusic.pageID
+        }
         env.focus.start()
         introduceAutoTheme(settings: settings, state: state)
         AutoPalette.shared.isActive = { settings.theme == .auto }
@@ -95,5 +107,6 @@ extension View {
             .environment(env.timer)
             .environment(env.prompt)
             .environment(env.focus)
+            .environment(env.music)
     }
 }
