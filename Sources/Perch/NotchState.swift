@@ -101,14 +101,23 @@ final class NotchState {
 
 enum Theme: String, CaseIterable, Identifiable {
     /// Colours taken from the wallpaper behind the notch (see `AutoPalette`).
-    case auto, ember, aurora, graphite
+    /// Clear Liquid Glass over the desktop, with the wallpaper's colours.
+    case auto, glass, ember, aurora, graphite
     var id: String { rawValue }
-    var name: String { self == .auto ? "Auto (matches wallpaper)" : rawValue.capitalized }
+    var name: String {
+        switch self {
+        case .auto: "Auto (matches wallpaper)"
+        case .glass: "Glass (see-through)"
+        default: rawValue.capitalized
+        }
+    }
+    /// Takes its colours from the wallpaper (see `AutoPalette`).
+    var followsWallpaper: Bool { self == .auto || self == .glass }
 
     /// Main accent: rings, glows, the prompt spark.
     @MainActor var accent: Color {
         switch self {
-        case .auto: AutoPalette.shared.accent
+        case .auto, .glass: AutoPalette.shared.accent
         case .ember: Color(red: 1.00, green: 0.55, blue: 0.32)
         case .aurora: Color(red: 0.36, green: 0.93, blue: 0.80)
         case .graphite: Color(white: 0.92)
@@ -117,7 +126,7 @@ enum Theme: String, CaseIterable, Identifiable {
     /// Second stop of every gradient.
     @MainActor var accent2: Color {
         switch self {
-        case .auto: AutoPalette.shared.accent2
+        case .auto, .glass: AutoPalette.shared.accent2
         case .ember: Color(red: 1.00, green: 0.30, blue: 0.45)
         case .aurora: Color(red: 0.55, green: 0.45, blue: 1.00)
         case .graphite: Color(white: 0.55)
@@ -136,7 +145,7 @@ final class AppSettings {
         didSet {
             d.set(theme.rawValue, forKey: "theme")
             d.set(true, forKey: "themeChosen")
-            if theme == .auto { AutoPalette.shared.update() }
+            if theme.followsWallpaper { AutoPalette.shared.update() }
         }
     }
     /// The person picked a theme in the menu (rather than keeping the default).

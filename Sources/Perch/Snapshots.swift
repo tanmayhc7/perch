@@ -8,7 +8,8 @@ import SwiftUI
 enum Snapshots {
     static func render(to dir: URL) {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        for theme in Theme.allCases where theme != .auto {
+        // Glass shows the desktop behind the window, which an image snapshot can't capture.
+        for theme in Theme.allCases where !theme.followsWallpaper {
             shot(dir, "expanded-\(theme.rawValue)", theme: theme) { env in env.state.mode = .expanded }
         }
         shot(dir, "collapsed-responding", theme: .ember, height: 120) { env in

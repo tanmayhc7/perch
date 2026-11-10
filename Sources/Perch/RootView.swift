@@ -24,7 +24,8 @@ struct NotchRootView: View {
                 .frame(width: size.width, height: size.height)
 
             ZStack(alignment: .top) {
-                NotchBackground(expanded: expanded, theme: settings.theme, notchHeight: state.geometry.height)
+                NotchBackground(expanded: expanded, theme: settings.theme, shape: shape,
+                                notchWidth: state.geometry.width, notchHeight: state.geometry.height)
                 if expanded {
                     ExpandedView()
                         .transition(.asymmetric(
@@ -39,10 +40,12 @@ struct NotchRootView: View {
             .frame(width: size.width, height: size.height)
             .clipShape(shape)
             .overlay(
-                shape.stroke(LinearGradient(colors: [.white.opacity(0), .white.opacity(expanded ? 0.13 : 0.0)],
+                // Glass draws its own rim.
+                shape.stroke(LinearGradient(colors: [.white.opacity(0), .white.opacity(expanded && settings.theme != .glass ? 0.13 : 0.0)],
                                             startPoint: .top, endPoint: .bottom), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(expanded ? 0.55 : 0), radius: 24, y: 12)
+            // Glass keeps a light shadow, so it reads as part of the desktop rather than a slab above it.
+            .shadow(color: .black.opacity(expanded ? (settings.theme == .glass ? 0.18 : 0.55) : 0), radius: 24, y: 12)
             .contentShape(shape)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -53,34 +56,81 @@ struct NotchRootView: View {
 }
 
 /// Pure black where the hardware notch is, easing into a smoky glass lit by the theme.
+/// The Glass theme is clear Liquid Glass instead, black only behind the camera.
 struct NotchBackground: View {
     var expanded: Bool
     var theme: Theme
+    var shape = NotchShape(shoulder: 0, bottom: 0)
+    var notchWidth: CGFloat = 185
     var notchHeight: CGFloat
 
     var body: some View {
-        ZStack {
-            Color.black
-            if expanded && theme == .auto {
-                // Auto: black around the hardware notch, fading into the wallpaper's own colour toward the bottom
-                // edge, so the open notch melts into the desktop below it.
-                LinearGradient(stops: [.init(color: AutoPalette.shared.surface.opacity(0), location: 0.12),
-                                       .init(color: AutoPalette.shared.surface.opacity(0.7), location: 0.62),
-                                       .init(color: AutoPalette.shared.surface.opacity(0.95), location: 1)],
-                               startPoint: .top, endPoint: .bottom)
+        if expanded && theme == .glass {
+            ZStack(alignment: .top) {
+                GlassFill(shape: shape)
+                // Black only where the hardware notch is, so the camera cutout still disappears.
+                RoundedRectangle(cornerRadius: notchHeight * 0.45, style: .continuous)
+                    .fill(.black)
+                    .frame(width: notchWidth + 16, height: notchHeight + 4)
+                    .offset(y: -4)
+                    .blur(radius: 5)
             }
-            if expanded {
-                RadialGradient(colors: [theme.accent.opacity(0.20), .clear], center: UnitPoint(x: 0.05, y: 1.05),
-                               startRadius: 0, endRadius: 380)
-                RadialGradient(colors: [theme.accent2.opacity(0.13), .clear], center: UnitPoint(x: 0.98, y: 0.35),
-                               startRadius: 0, endRadius: 300)
-                LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black.opacity(0.0), location: 0.45)],
-                               startPoint: .top, endPoint: .bottom)
-                    .frame(maxHeight: notchHeight * 3, alignment: .top)
-                    .frame(maxHeight: .infinity, alignment: .top)
+            .transition(.opacity.animation(.easeOut(duration: 0.2)))
+        } else {
+            ZStack {
+                Color.black
+                if expanded && theme == .auto {
+                    // Auto: black around the hardware notch, fading into the wallpaper's own colour toward the bottom
+                    // edge, so the open notch melts into the desktop below it.
+                    LinearGradient(stops: [.init(color: AutoPalette.shared.surface.opacity(0), location: 0.12),
+                                           .init(color: AutoPalette.shared.surface.opacity(0.7), location: 0.62),
+                                           .init(color: AutoPalette.shared.surface.opacity(0.95), location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                }
+                if expanded {
+                    RadialGradient(colors: [theme.accent.opacity(0.20), .clear], center: UnitPoint(x: 0.05, y: 1.05),
+                                   startRadius: 0, endRadius: 380)
+                    RadialGradient(colors: [theme.accent2.opacity(0.13), .clear], center: UnitPoint(x: 0.98, y: 0.35),
+                                   startRadius: 0, endRadius: 300)
+                    LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black.opacity(0.0), location: 0.45)],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(maxHeight: notchHeight * 3, alignment: .top)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
             }
         }
     }
+}
+
+/// Clear Liquid Glass on macOS 26 and later: the desktop shows through, lightly blurred and bent at
+/// the edges. Earlier macOS gets the system's behind-window blur.
+struct GlassFill<S: Shape>: View {
+    var shape: S
+    @Environment(\.snapshotMode) private var snapshot
+
+    var body: some View {
+        if snapshot {
+            // Image snapshots can't see behind the window; a stand-in.
+            shape.fill(.white.opacity(0.08))
+        } else if #available(macOS 26.0, *) {
+            Color.clear.glassEffect(.clear, in: shape)
+        } else {
+            BehindWindowBlur().clipShape(shape)
+        }
+    }
+}
+
+/// The system blur of whatever is behind the window (the wallpaper, other windows).
+struct BehindWindowBlur: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let v = NSVisualEffectView()
+        v.material = .popover
+        v.blendingMode = .behindWindow
+        // Always active: the panel never becomes the key window, which would otherwise grey the blur out.
+        v.state = .active
+        return v
+    }
+    func updateNSView(_ v: NSVisualEffectView, context: Context) {}
 }
 
 /// A soft halo around the notch that breathes while a Claude Code session is responding,
