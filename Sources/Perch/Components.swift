@@ -58,15 +58,22 @@ struct ProgressRing: View {
 struct Tile<Content: View>: View {
     var padding: CGFloat = 12
     @ViewBuilder var content: Content
+    @Environment(AppSettings.self) private var settings
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
         content
             .padding(padding)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(LinearGradient(colors: [.white.opacity(0.075), .white.opacity(0.035)], startPoint: .top, endPoint: .bottom))
-            )
+            .background {
+                if settings.theme == .glass {
+                    // A darker pane of glass on the clear glass, so tiles, text and buttons stand out from the
+                    // bright, see-through edges around them.
+                    GlassFill(shape: shape).overlay(shape.fill(.black.opacity(0.32)))
+                } else {
+                    shape.fill(LinearGradient(colors: [.white.opacity(0.075), .white.opacity(0.035)], startPoint: .top, endPoint: .bottom))
+                }
+            }
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .strokeBorder(LinearGradient(colors: [.white.opacity(0.16), .white.opacity(0.04)], startPoint: .top, endPoint: .bottom),

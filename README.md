@@ -77,6 +77,17 @@ macOS doesn't let apps change Focus directly, so this goes through two small sho
 **Add Shortcut** on each. They only get and set your Focus, and you can read every step in Shortcuts.
 Perch remembers a running session, so quitting Perch, a crash or sleep can't leave Do Not Disturb stuck on.
 
+**Focus music (optional).** Under **⋯ → Focus music**, pick an audio file (mp3, m4a, wav, …) or paste a YouTube link
+(a video or a live stream). It plays for as long as a 25 or 50 minute timer runs (a file loops), fading in when you
+start or resume and out when you pause, stop or finish; breaks stay quiet. If Spotify or Apple Music is playing, Perch
+pauses it first. The music gets its own page in the music tile, next to Spotify and Apple Music, where you can pause it
+or stop it for the rest of the session while the timer keeps going.
+
+YouTube needs a connection. If [Brave](https://brave.com) is installed, the video plays in a private, headless Brave
+(its own profile, no window or Dock icon) whose Shields block YouTube's ads; otherwise it plays in a hidden web page
+inside Perch, where ads still play (Perch presses Skip when YouTube offers it). The hidden page closes when the timer
+ends, after two minutes paused (resuming reopens it where it was), and on its own if Perch quits unexpectedly.
+
 ### Themes
 **Auto** (the default) takes its colours from your wallpaper, so the open notch blends into your desktop: it stays
 black around the hardware notch and fades into the wallpaper's own colour toward its bottom edge, while the glow,

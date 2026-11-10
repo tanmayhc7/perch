@@ -196,6 +196,7 @@ final class FocusTimer {
     /// A session began (with when it ends) or ended (finished or stopped). Pausing changes neither.
     @ObservationIgnored var onBegan: ((Date) -> Void)?
     @ObservationIgnored var onEnded: (() -> Void)?
+    @ObservationIgnored var onPaused: (() -> Void)?
     @ObservationIgnored private var timer: Timer?
 
     func remaining(at now: Date) -> TimeInterval {
@@ -224,6 +225,7 @@ final class FocusTimer {
             remainingWhenPaused = remaining(at: Date())
             phase = .paused
             timer?.invalidate()
+            onPaused?()
         case .paused:
             endsAt = Date().addingTimeInterval(remainingWhenPaused)
             phase = .running
