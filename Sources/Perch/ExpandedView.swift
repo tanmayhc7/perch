@@ -99,6 +99,7 @@ struct SettingsMenu: View {
     @Environment(AppSettings.self) private var settings
     @Environment(FocusLink.self) private var focus
     @Environment(FocusMusic.self) private var music
+    @Environment(CalendarModel.self) private var calendar
     @Environment(NotchState.self) private var state
     @Environment(\.snapshotMode) private var snapshot
 
@@ -118,6 +119,22 @@ struct SettingsMenu: View {
                 Button("Choose a file…") { music.chooseFile() }
                 Button("Use a YouTube link…") { music.chooseYouTube() }
                 if music.source != nil { Divider(); Button("No focus music") { music.remove() } }
+            }
+            Menu(calendar.hiddenCount > 0 ? "Calendars (\(calendar.hiddenCount) off)" : "Calendars") {
+                if !calendar.hasAccess {
+                    Text(calendar.access == .notDetermined ? "Click Show my calendar first" : "Allow Calendars in System Settings")
+                } else {
+                    ForEach(calendar.groups) { group in
+                        Section(group.title) {
+                            ForEach(group.calendars) { cal in
+                                Toggle(cal.title, isOn: Binding(get: { calendar.isShown(cal.id) }, set: { calendar.setShown(cal.id, $0) }))
+                            }
+                        }
+                    }
+                    Divider()
+                    if calendar.hiddenCount > 0 { Button("Show all calendars") { calendar.showAll() } }
+                }
+                Button("Add a Google or other account…") { CalendarModel.openAccountSettings() }
             }
             Toggle("Open at login", isOn: $s.launchAtLogin)
             Divider()

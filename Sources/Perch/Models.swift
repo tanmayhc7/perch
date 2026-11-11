@@ -109,15 +109,71 @@ final class CalendarModel {
         var color: NSColor
     }
 
+    /// One calendar the person can include or leave out.
+    struct CalendarEntry: Identifiable, Equatable {
+        var id: String
+        var title: String
+        var color: NSColor
+    }
+    /// The calendars of one account (iCloud, Google, Exchange, "On My Mac", …).
+    struct CalendarGroup: Identifiable, Equatable {
+        var id: String
+        var title: String
+        var calendars: [CalendarEntry]
+    }
+
     var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
     var next: Meeting?
+    /// Every calendar on the Mac, by account. Google calendars appear here once the Google account is
+    /// added in System Settings → Internet Accounts with Calendars switched on.
+    private(set) var groups: [CalendarGroup] = []
+    /// Calendars the person turned off. Stored this way round so a calendar added later is included.
+    private(set) var hidden: Set<String>
+    private let defaults: UserDefaults
 
     @ObservationIgnored var onAlert: ((Toast) -> Void)?
     @ObservationIgnored private let store = EKEventStore()
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var alerted: Set<String> = []
 
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        hidden = Set(defaults.stringArray(forKey: "hiddenCalendars") ?? [])
+    }
+
     var hasAccess: Bool { access == .fullAccess }
+    /// How many calendars are turned off right now (ones that no longer exist don't count).
+    var hiddenCount: Int { groups.reduce(0) { $0 + $1.calendars.filter { hidden.contains($0.id) }.count } }
+
+    func isShown(_ id: String) -> Bool { !hidden.contains(id) }
+
+    func setShown(_ id: String, _ shown: Bool) {
+        if shown { hidden.remove(id) } else { hidden.insert(id) }
+        defaults.set(Array(hidden).sorted(), forKey: "hiddenCalendars")
+        reload()
+    }
+
+    func showAll() {
+        hidden = []
+        defaults.removeObject(forKey: "hiddenCalendars")
+        reload()
+    }
+
+    private func loadGroups() {
+        let byAccount = Dictionary(grouping: store.calendars(for: .event)) { $0.source?.sourceIdentifier ?? "none" }
+        groups = byAccount.map { id, cals in
+            let title = cals.first?.source?.title ?? "Other"
+            return CalendarGroup(id: id, title: title,
+                                 calendars: cals.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+                                     .map { CalendarEntry(id: $0.calendarIdentifier, title: $0.title, color: $0.color ?? .systemBlue) })
+        }
+        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    /// Opens System Settings where a Google (or other) account is added.
+    static func openAccountSettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension")!)
+    }
 
     func start() {
         NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
@@ -139,9 +195,13 @@ final class CalendarModel {
 
     func reload() {
         access = EKEventStore.authorizationStatus(for: .event)
-        guard hasAccess else { next = nil; return }
+        guard hasAccess else { next = nil; groups = []; return }
+        loadGroups()
+        // nil would mean every calendar, so nothing selected has to be handled apart.
+        let allowed = store.calendars(for: .event).filter { !hidden.contains($0.calendarIdentifier) }
+        guard !allowed.isEmpty else { next = nil; return }
         let now = Date()
-        let pred = store.predicateForEvents(withStart: now.addingTimeInterval(-15 * 60), end: now.addingTimeInterval(24 * 3600), calendars: nil)
+        let pred = store.predicateForEvents(withStart: now.addingTimeInterval(-15 * 60), end: now.addingTimeInterval(24 * 3600), calendars: allowed)
         let events = store.events(matching: pred)
             .filter { !$0.isAllDay && $0.endDate > now && $0.status != .canceled }
             .filter { e in

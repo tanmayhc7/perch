@@ -65,6 +65,13 @@ Your next event in the next 24 hours, with a **Join** button for Zoom, Google Me
 video links. Two minutes before it starts, a reminder with Join slides out of the notch. Calendar access is only
 requested when you click **Show my calendar**.
 
+**Which calendars.** Perch reads every calendar on your Mac and shows the earliest event across all of them, so iCloud,
+Google, Outlook and Exchange calendars combine into one "next meeting". Choose which count under **⋯ → Calendars**,
+where they're grouped by account with a checkmark each; a calendar you add later is included until you turn it off.
+To bring in Google Calendar, add your Google account in System Settings → Internet Accounts and switch on Calendars
+(**⋯ → Calendars → Add a Google or other account…** opens it). Nothing goes through Google directly: events are read
+on your Mac by macOS.
+
 ### Focus timer
 25, 50 or 5 minutes. The countdown ring sits beside the closed notch, and a chime plus a slide-out tell you when it's done.
 
