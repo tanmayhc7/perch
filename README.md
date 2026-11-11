@@ -6,13 +6,14 @@
 
 <p align="center">
 Your MacBook's notch, turned into a live Claude Code dashboard,<br>
-a Spotify and Apple Music remote, an AirDrop and file shelf, and a one-line Claude prompt.
+a Spotify and Apple Music remote, an AirDrop and file shelf, a focus timer with its own music,<br>
+your next meeting, and a one-line Claude prompt.
 </p>
 
 <p align="center"><a href="docs/media/perch.mp4"><img src="docs/media/perch.gif" width="860" alt="Perch in 25 seconds: the notch lights up while Claude responds, springs open into a dashboard of tokens, burn rate and budget, answers a question typed into the Ask Claude bar, takes a dropped file for AirDrop or the shelf, swipes from Spotify to Apple Music, starts a 25-minute focus timer whose YouTube focus music takes over the music tile, then turns from the Auto theme to clear Glass with a sunset showing through"></a><br>
 <sub>▶ <a href="docs/media/perch.mp4">Watch with sound</a> (25 s)</sub></p>
 
-<p align="center"><img src="docs/images/expanded-ember.png" width="860" alt="Perch open: Claude Code usage with a budget ring, music now playing, the next meeting with a Join button, a focus timer and an Ask Claude bar"></p>
+<p align="center"><img src="docs/images/expanded-ember.png" width="860" alt="Perch open: Claude Code usage with a budget ring and the model in use, music now playing, the next meeting with a Join button, a focus timer and an Ask Claude bar"></p>
 
 Perch sits in the notch and stays out of the way. Point at the notch and it springs open. While a Claude Code
 session is responding, the notch glows softly so you can see it's working from any app.
@@ -23,6 +24,7 @@ session is responding, the notch glows softly so you can see it's working from a
 - Tokens for the **last 5 hours** and **today**, the estimated cost, and the **burn rate** with a 30-minute sparkline
 - Your **all-sessions budget** as a ring, with how much is left
 - Which sessions are **responding**, active or idle, by project folder
+- The **model in use** (Sonnet 5.5, Opus 5.5, …): the responding session's, or the latest one's
 - A soft **glow** around the notch while any session is responding, with the live token count beside the notch
 - **Alerts slide out of the notch** at 80% and 100% of your budget, when the burn rate runs high, and (optionally) when a session finishes
 
@@ -30,7 +32,8 @@ session is responding, the notch glows softly so you can see it's working from a
 <p align="center"><img src="docs/images/toast-budget.png" width="760" alt="A budget alert sliding out of the notch"></p>
 
 These numbers come from [**token-meter**](https://github.com/tanmayhc7/claude-token-meter), a Claude Code plugin that
-records each request's usage in `~/.claude/token-meter/`. Install it first; Perch only reads that folder.
+records each request's usage in `~/.claude/token-meter/`. Install it first. The model name is the one thing that comes
+from elsewhere: the newest reply in the session's own transcript (see [Privacy](#privacy)).
 Tokens are counted the way token-meter's budgets count them: cache reads weighted by their price.
 Set a budget in Claude Code with `/token-budget all 5M` (or `/token-budget all $20`).
 
@@ -45,7 +48,7 @@ it's the cheapest. The cost of each answer is shown next to it.
 Track, artist, artwork and progress, with previous, play/pause and next. Spotify and Apple Music share one tile:
 **swipe sideways with two fingers** (or click the dots in the corner) to switch, and the tile turns to whichever
 app starts playing on its own. Perch never opens either app by itself; when one is closed its page shows an
-**Open** button instead.
+**Open** button instead. Once you choose [focus music](#focus-timer), it gets a third page here.
 
 <p align="center"><img src="docs/images/music.png" width="860" alt="The music tile showing Apple Music, with page dots in its corner for switching back to Spotify"></p>
 
@@ -95,6 +98,8 @@ YouTube needs a connection. If [Brave](https://brave.com) is installed, the vide
 inside Perch, where ads still play (Perch presses Skip when YouTube offers it). The hidden page closes when the timer
 ends, after two minutes paused (resuming reopens it where it was), and on its own if Perch quits unexpectedly.
 
+<p align="center"><img src="docs/images/focus-music.png" width="860" alt="A 25-minute focus timer running with a note beside its label, and the music tile on its focus music page: a YouTube track with pause and stop buttons"></p>
+
 ### Themes
 **Auto** (the default) takes its colours from your wallpaper, so the open notch blends into your desktop: it stays
 black around the hardware notch and fades into the wallpaper's own colour toward its bottom edge, while the glow,
@@ -108,6 +113,13 @@ your Mac's accent colour.
 <img src="docs/images/auto-ocean.png" width="280" alt="Auto theme on an ocean wallpaper: blue accents">
 <img src="docs/images/auto-forest.png" width="280" alt="Auto theme on a forest wallpaper: green accents">
 </p>
+
+**Glass** goes further: the open notch is clear glass (Liquid Glass on macOS 26 and later), so you see your wallpaper
+and windows through it, lightly blurred. Only the patch behind the camera stays black, the tiles are darker panes so
+text and buttons stay readable, and the accents come from the wallpaper as in Auto. The closed notch stays black.
+On earlier macOS it uses the system's blur instead.
+
+<p align="center"><img src="docs/images/glass-sunset.png" width="860" alt="Glass theme over a sunset wallpaper: the sun shows through the open notch behind the tiles (a frame from the launch video)"></p>
 
 Or pick a fixed theme from the **⋯** menu: **Ember** (above), **Aurora** or **Graphite**.
 
@@ -172,6 +184,7 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 | `scripts/build-app.sh` | Builds a universal `.app` and the release zip with SwiftPM only |
 | `scripts/focus-shortcut.py` | Generates and signs the two Focus shortcuts in `Resources/` |
 | `Sources/Perch/FocusLink.swift` | Runs those shortcuts for the focus timer, with crash and sleep recovery |
+| `Sources/Perch/FocusMusic.swift`, `YouTubeAudio.swift` | Focus music: the looping file player, and YouTube in a hidden Brave or web view |
 
 ## Privacy
 - Everything stays on your Mac. Perch has no analytics, no telemetry and no server.
