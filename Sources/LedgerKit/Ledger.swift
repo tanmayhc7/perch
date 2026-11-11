@@ -178,6 +178,8 @@ public struct ClaudeStats: Sendable, Equatable {
     public var burnHistory: [Double] = Array(repeating: 0, count: 30)
     public var sessions: [SessionActivity] = []
     public var budget: LedgerBudget?
+    /// The model the busiest current session uses (see `Transcript`), when it can be found.
+    public var model: String?
 
     public init() {}
 

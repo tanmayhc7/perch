@@ -9,7 +9,7 @@ Your MacBook's notch, turned into a live Claude Code dashboard,<br>
 a Spotify and Apple Music remote, an AirDrop and file shelf, and a one-line Claude prompt.
 </p>
 
-<p align="center"><a href="docs/media/perch.mp4"><img src="docs/media/perch.gif" width="860" alt="Perch in 25 seconds: the notch lights up while Claude responds, springs open into a dashboard of tokens, burn rate and budget, slides out a budget alert, answers a question typed into the Ask Claude bar, takes a dropped file for AirDrop or the shelf, swipes from Spotify to Apple Music, and recolours itself to match three wallpapers"></a><br>
+<p align="center"><a href="docs/media/perch.mp4"><img src="docs/media/perch.gif" width="860" alt="Perch in 25 seconds: the notch lights up while Claude responds, springs open into a dashboard of tokens, burn rate and budget, answers a question typed into the Ask Claude bar, takes a dropped file for AirDrop or the shelf, swipes from Spotify to Apple Music, starts a 25-minute focus timer whose YouTube focus music takes over the music tile, then turns from the Auto theme to clear Glass with a sunset showing through"></a><br>
 <sub>▶ <a href="docs/media/perch.mp4">Watch with sound</a> (25 s)</sub></p>
 
 <p align="center"><img src="docs/images/expanded-ember.png" width="860" alt="Perch open: Claude Code usage with a budget ring, music now playing, the next meeting with a Join button, a focus timer and an Ask Claude bar"></p>
@@ -64,6 +64,13 @@ The shelf keeps references to your files. It never copies, moves or uploads them
 Your next event in the next 24 hours, with a **Join** button for Zoom, Google Meet, Teams, Webex, FaceTime and other
 video links. Two minutes before it starts, a reminder with Join slides out of the notch. Calendar access is only
 requested when you click **Show my calendar**.
+
+**Which calendars.** Perch reads every calendar on your Mac and shows the earliest event across all of them, so iCloud,
+Google, Outlook and Exchange calendars combine into one "next meeting". Choose which count under **⋯ → Calendars**,
+where they're grouped by account with a checkmark each; a calendar you add later is included until you turn it off.
+To bring in Google Calendar, add your Google account in System Settings → Internet Accounts and switch on Calendars
+(**⋯ → Calendars → Add a Google or other account…** opens it). Nothing goes through Google directly: events are read
+on your Mac by macOS.
 
 ### Focus timer
 25, 50 or 5 minutes. The countdown ring sits beside the closed notch, and a chime plus a slide-out tell you when it's done.
@@ -158,7 +165,7 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 ### Project layout
 | Path | What's there |
 | --- | --- |
-| `Sources/LedgerKit` | Reads token-meter's ledger and computes the stats. No UI code, so a menu-bar app or CLI can reuse it. |
+| `Sources/LedgerKit` | Reads token-meter's ledger and computes the stats, plus the model name from a session's transcript. No UI code, so a menu-bar app or CLI can reuse it. |
 | `Sources/Perch/NotchController.swift` | The borderless panel over the notch, hover and drag detection |
 | `Sources/Perch/*Model*.swift` | Claude, music players, shelf, calendar, timer and prompt models; `AutoPalette.swift` picks the Auto theme's colours |
 | `Sources/Perch/RootView.swift`, `ExpandedView.swift` | The SwiftUI views |
@@ -168,11 +175,16 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 
 ## Privacy
 - Everything stays on your Mac. Perch has no analytics, no telemetry and no server.
-- It reads `~/.claude/token-meter/` (written by token-meter). It never reads your Claude Code conversations.
+- It reads `~/.claude/token-meter/` (written by token-meter) for usage. To show which model is in use, it also opens the
+  last part of the current session's transcript in `~/.claude/projects/` and takes one thing from it: the model name on
+  the newest reply. Your conversation isn't displayed, kept or sent anywhere.
 - Questions you type into the notch are sent to Anthropic by your own `claude` command, exactly as if you ran `claude -p` in Terminal, and they use your Claude Code plan or API credits.
 - Spotify artwork is downloaded from Spotify's image servers. Nothing is sent to Spotify beyond what its own app already does. Apple Music artwork comes straight from the Music app.
 - The Auto theme reads your wallpaper file on your Mac to pick colours. It doesn't capture your screen. If your wallpaper is in Desktop, Documents or Downloads, it's only read after you choose **Auto** in the menu yourself, because macOS asks permission for those folders.
 - Calendar events are read on your Mac with Apple's EventKit and never leave it.
+- YouTube focus music loads youtube.com in a hidden page, like opening the video in a browser; nothing else is sent. With
+  Brave, that page runs in a private Brave profile of Perch's own, controlled through a debugging port that only your
+  Mac can reach (127.0.0.1) while the music plays.
 - The Focus option runs the two Perch shortcuts on your Mac with Apple's `shortcuts` command. They read and set your Focus and nothing else.
 - Files on the shelf are only referenced, never copied or uploaded. AirDrop uses macOS's own AirDrop sheet.
 
