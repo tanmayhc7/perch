@@ -14,6 +14,35 @@ func unwrap<T>(_ v: T?, _ what: String) -> T {
 
 let now = Date(timeIntervalSince1970: 1_800_000_000)
 
+// testFindsTheModelInATranscriptTail
+do {
+    func line(_ type: String, model: String? = nil, extra: String = "") -> String {
+        let m = model.map { ",\"model\":\"\($0)\"" } ?? ""
+        return "{\"type\":\"\(type)\",\"message\":{\"role\":\"x\"\(m)}\(extra)}"
+    }
+    let t = [line("assistant", model: "claude-opus-5-5"), line("user"), line("assistant", model: "claude-sonnet-5-5"),
+             line("user", extra: ",\"note\":\"{\\\"model\\\":\\\"claude-haiku-5-5\\\"}\""), line("assistant", model: "<synthetic>")].joined(separator: "\n")
+    // Newest real assistant model: skips the synthetic one and the user line that only mentions a model.
+    check(Transcript.modelName(inTail: Data(t.utf8)), "claude-sonnet-5-5", "newest model")
+    check(Transcript.modelName(inTail: Data(line("user").utf8)), nil, "no assistant line")
+    check(Transcript.modelName(inTail: Data("not json\n{broken".utf8)), nil, "garbage")
+    // A cut-off first line is skipped, not misread.
+    let cut = "ant\",\"model\":\"claude-opus-5-5\"}}\n" + line("user")
+    check(Transcript.modelName(inTail: Data(cut.utf8), startsMidLine: true), nil, "cut-off first line")
+    check(Transcript.find(sessionID: "../etc/passwd"), nil, "path-like id refused")
+}
+
+// testNamesModelsForPeople
+do {
+    check(Transcript.displayName("claude-sonnet-5-5"), "Sonnet 5.5", "sonnet 5.5")
+    check(Transcript.displayName("claude-opus-4-1-20250805"), "Opus 4.1", "dated opus")
+    check(Transcript.displayName("claude-3-5-sonnet-20241022"), "Sonnet 3.5", "old order")
+    check(Transcript.displayName("claude-fable-5-1"), "Fable 5.1", "fable")
+    check(Transcript.displayName("claude-opus-4-1[1m]"), "Opus 4.1 (1M)", "context window")
+    check(Transcript.displayName("claude-haiku-5-5"), "Haiku 5.5", "haiku")
+    check(Transcript.displayName("gpt-something"), "gpt-something", "unknown stays as is")
+}
+
 func ms(_ d: Date) -> Double { d.timeIntervalSince1970 * 1000 }
 
 // testParsesSessionFile

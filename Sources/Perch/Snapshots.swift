@@ -149,6 +149,7 @@ enum Snapshots {
         env.claude.loaded = true
         env.spotify.loaded = true
         env.claude.stats = ClaudeStats.compute(sessions: [a, b, c], budget: LedgerBudget(tokens: 5_000_000), now: now)
+        env.claude.stats.model = "claude-sonnet-5-5"
         env.spotify.installed = true
         env.spotify.running = true
         env.spotify.playing = true

@@ -201,7 +201,18 @@ struct ClaudeTile: View {
                                     .font(.system(size: 22, weight: .semibold, design: .rounded).monospacedDigit())
                                     .foregroundStyle(.white)
                                     .contentTransition(.numericText())
+                                    .fixedSize().layoutPriority(1)
                                 Text("last \(s.windowText)").font(.system(size: 10.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
+                                Spacer(minLength: 0)
+                                if let model = s.model {
+                                    // Gives way before the token count does: the count keeps its width.
+                                    Text(Transcript.displayName(model))
+                                        .font(.system(size: 9.5, weight: .semibold)).foregroundStyle(.white.opacity(0.75))
+                                        .lineLimit(1).minimumScaleFactor(0.75)
+                                        .padding(.horizontal, 6).frame(height: 17)
+                                        .background(Capsule().fill(.white.opacity(0.09)))
+                                        .help("\(model): the model in use now (the responding session, or the latest one)")
+                                }
                             }
                             HStack(spacing: 10) {
                                 stat("TODAY", TokenFormat.short(s.todayTokens))

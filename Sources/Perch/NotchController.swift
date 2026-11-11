@@ -85,6 +85,26 @@ final class NotchController {
                 case "timerpause": self.env.timer.toggle()
                 case "musicmute": self.env.music.toggleMute()
                 case "musicstop": self.env.music.stopForSession()
+                case "calendars":
+                    let c = self.env.calendar
+                    let line = "access=\(c.access.rawValue) hidden=\(c.hiddenCount) next=\(c.next?.title ?? "-") groups=\(c.groups.map { "\($0.title)[\($0.calendars.map { ($0.title) + (c.isShown($0.id) ? "+" : "-") }.joined(separator: ","))]" })\n"
+                    // NSLog redacts dynamic strings in the unified log, so debug output goes to a file when asked.
+                    if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
+                        h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+                    }
+                case _ where cmd.hasPrefix("calhide:"):
+                    let title = String(cmd.dropFirst(8))
+                    for g in self.env.calendar.groups { for cal in g.calendars where cal.title == title { self.env.calendar.setShown(cal.id, false) } }
+                case _ where cmd.hasPrefix("calshow:"):
+                    let title = String(cmd.dropFirst(8))
+                    for g in self.env.calendar.groups { for cal in g.calendars where cal.title == title { self.env.calendar.setShown(cal.id, true) } }
+                case "calall": self.env.calendar.showAll()
+                case "claudemodel":
+                    let st = self.env.claude.stats
+                    let line = "model=\(st.model ?? "-") shown=\(st.model.map(Transcript.displayName) ?? "-") sessions=\(st.sessions.map { "\($0.project):\($0.state)" })\n"
+                    if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
+                        h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+                    }
                 case "musicpage": self.env.music.debugState { NSLog("Perch music page: \($0)") }
                 case _ where cmd.hasPrefix("page:"): self.env.media.selectedID = String(cmd.dropFirst(5))
                 case "state":
