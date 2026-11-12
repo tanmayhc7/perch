@@ -132,15 +132,21 @@ Macs without a notch get a small pill at the top center of the screen that works
 
 ## Install
 
-1. Download `perch-<version>.zip` from the [latest release](https://github.com/tanmayhc7/perch/releases/latest) and unzip it.
-2. Drag **Perch.app** into **Applications**.
-3. Open it. macOS blocks it the first time, because the app isn't notarized by Apple yet (see [Signing](#signing-and-notarization)):
-   - Click **Done** on the warning.
-   - Open **System Settings → Privacy & Security**, scroll down to the message about Perch, and click **Open Anyway**.
-   - Confirm with **Open Anyway** and your password.
+Open **Terminal** (press **Cmd + Space**, type `Terminal`, press Return), paste this one line, and press Return:
 
-   You only need to do this once. If you'd rather use Terminal: `xattr -dr com.apple.quarantine /Applications/Perch.app`
-4. Point at the notch. To start it with your Mac, turn on **Open at login** in the **⋯** menu.
+```bash
+curl -fsSL https://raw.githubusercontent.com/tanmayhc7/perch/main/install.sh | bash
+```
+
+That's all: no Git, no Xcode, no password. Perch is installed in **Applications** and opens. Run the same line again any
+time to update.
+
+The script ([install.sh](install.sh), about 100 lines, worth a read before you run it) finds the latest
+[release](https://github.com/tanmayhc7/perch/releases/latest), downloads it, checks it against the checksum GitHub lists
+for it, quits Perch if it's running, and copies `Perch.app` into `/Applications` (or `~/Applications` if that isn't
+writable for you). Perch isn't notarized by Apple yet (see [Signing](#signing-and-notarization)), so macOS would
+otherwise warn about an "unidentified developer": the script clears the "downloaded from the internet" flag on the app
+to skip that warning. It never uses `sudo`.
 
 Requires macOS 14 Sonoma or later. The app is a universal binary (Apple Silicon and Intel).
 
@@ -202,7 +208,7 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 - Files on the shelf are only referenced, never copied or uploaded. AirDrop uses macOS's own AirDrop sheet.
 
 ## Signing and notarization
-Releases are currently **ad-hoc signed and not notarized**, which is why macOS asks you to approve the app once.
+Releases are currently **ad-hoc signed and not notarized**, which is why [the install script](#install) clears the quarantine flag (without it, macOS makes you approve the app once in System Settings → Privacy & Security).
 Notarizing needs a paid Apple Developer account. When one is available, the release steps become:
 
 1. Sign with a Developer ID certificate and the hardened runtime:
