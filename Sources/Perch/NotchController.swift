@@ -31,6 +31,9 @@ final class NotchController {
     func show() {
         let p = NotchPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.isFloatingPanel = true
+        // Clicking a tile or a button doesn't take keyboard focus; only the prompt field does. A focused
+        // window makes Liquid Glass (the Glass theme) draw clearer, which washed the tiles out on every click.
+        p.becomesKeyOnlyIfNeeded = true
         p.level = .statusBar + 1
         p.backgroundColor = .clear
         p.isOpaque = false
@@ -64,6 +67,11 @@ final class NotchController {
                 self.env.calendar.reload()
             }
         }
+        for (name, key) in [(NSWindow.didBecomeKeyNotification, true), (NSWindow.didResignKeyNotification, false)] {
+            NotificationCenter.default.addObserver(forName: name, object: p, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.env.state.hasKeyboard = key; if key { self?.env.state.engaged = true } }
+            }
+        }
         installMonitors()
         observeState()
         if ProcessInfo.processInfo.environment["PERCH_DEBUG"] == "1" { installDebugHooks() }
@@ -93,6 +101,8 @@ final class NotchController {
                     // widget:links:off, widget:calendar:on
                     let parts = cmd.split(separator: ":")
                     if parts.count == 3, let w = Widget(rawValue: String(parts[1])) { self.env.settings.set(w, on: parts[2] == "on") }
+                case "key": self.focusPrompt()
+                case "engage": self.env.state.engaged.toggle()
                 case "update": self.env.updater.run()
                 case "timerpause": self.env.timer.toggle()
                 case "musicmute": self.env.music.toggleMute()
@@ -166,6 +176,14 @@ final class NotchController {
         // session doesn't always deliver events to monitors.
         monitors.append(NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
             MainActor.assumeIsolated { self?.mouseDown() }
+        } as Any)
+        // A click inside the open notch: the person is using it (see `NotchState.engaged`).
+        monitors.append(NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] e in
+            MainActor.assumeIsolated {
+                guard let self, e.window === self.panel, self.env.state.isExpanded else { return }
+                self.env.state.engaged = true
+            }
+            return e
         } as Any)
         // Two fingers sideways on the open notch switch slides.
         monitors.append(NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] e in
@@ -279,6 +297,7 @@ final class NotchController {
     /// Not after a click somewhere else: that click already chose where focus goes.
     func collapse(restoreFocus: Bool) {
         env.state.mode = .collapsed
+        env.state.engaged = false
         env.state.pinned = false
         env.state.dropMode = false
         if panel.isKeyWindow {

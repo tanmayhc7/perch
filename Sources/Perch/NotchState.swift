@@ -62,6 +62,11 @@ final class NotchState {
     var pinned = false
     var geometry: NotchGeometry
     var showingAnswer = false
+    /// The panel has keyboard focus (the prompt is being typed in).
+    var hasKeyboard = false
+    /// The person clicked inside the open notch (or is typing in it). In the Glass theme the tiles turn
+    /// solid then, so what's being used is easy to read; the notch around them stays glass. Cleared on close.
+    var engaged = false
     /// Which slide of the open notch is showing (see `Slide`). Swiping sideways with two fingers changes it.
     var slide: Slide = .home
     /// The music tile's rectangle in the panel (top-left origin): sideways swipes there turn its own pages.

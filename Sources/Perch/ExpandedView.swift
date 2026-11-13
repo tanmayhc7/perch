@@ -732,7 +732,8 @@ struct PromptBar: View {
             }
         }
         .padding(.leading, 14).padding(.trailing, 7)
-        .background(Capsule().fill(.white.opacity(focused ? 0.1 : 0.06)))
+        // Glass, once the notch is in use: solid like the tiles.
+        .background(Capsule().fill(settings.theme == .glass && state.engaged ? AnyShapeStyle(Color(white: 0.09)) : AnyShapeStyle(.white.opacity(focused ? 0.1 : 0.06))))
         .overlay(Capsule().strokeBorder(focused ? AnyShapeStyle(theme.gradient.opacity(0.7)) : AnyShapeStyle(.white.opacity(0.1)), lineWidth: focused ? 1 : 0.75))
         .animation(.easeOut(duration: 0.2), value: focused)
         .onChange(of: focused) { _, f in

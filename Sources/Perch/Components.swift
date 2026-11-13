@@ -59,6 +59,7 @@ struct Tile<Content: View>: View {
     var padding: CGFloat = 12
     @ViewBuilder var content: Content
     @Environment(AppSettings.self) private var settings
+    @Environment(NotchState.self) private var state
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -68,8 +69,11 @@ struct Tile<Content: View>: View {
             .background {
                 if settings.theme == .glass {
                     // A darker pane of glass on the clear glass, so tiles, text and buttons stand out from the
-                    // bright, see-through edges around them.
-                    GlassFill(shape: shape).overlay(shape.fill(.black.opacity(0.32)))
+                    // bright, see-through edges around them. Once the person clicks in the notch, the panes turn
+                    // solid: whatever is behind can't get in the way of what they're using.
+                    GlassFill(shape: shape)
+                        .overlay(shape.fill(state.engaged ? Color(white: 0.075) : .black.opacity(0.32)))
+                        .animation(.easeOut(duration: 0.2), value: state.engaged)
                 } else {
                     shape.fill(LinearGradient(colors: [.white.opacity(0.075), .white.opacity(0.035)], startPoint: .top, endPoint: .bottom))
                 }
