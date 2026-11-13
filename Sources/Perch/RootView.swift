@@ -231,6 +231,7 @@ struct CollapsedView: View {
 struct ToastView: View {
     var toast: Toast
     var theme: Theme
+    @Environment(\.snapshotMode) private var snapshot
 
     private var tint: Color {
         switch toast.tint {
@@ -258,6 +259,11 @@ struct ToastView: View {
             if let title = toast.actionTitle, let action = toast.action {
                 Button(title) { action() }
                     .buttonStyle(PillButtonStyle(theme: theme, prominent: true))
+                    // Buttons aren't drawn in image snapshots, so they get a look-alike.
+                    .snapshotStandIn(snapshot) {
+                        Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(.black)
+                            .padding(.horizontal, 10).frame(height: 24).background(Capsule().fill(theme.gradient))
+                    }
             }
         }
         .padding(.horizontal, 22)
