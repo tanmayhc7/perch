@@ -93,6 +93,7 @@ final class NotchController {
                     // widget:links:off, widget:calendar:on
                     let parts = cmd.split(separator: ":")
                     if parts.count == 3, let w = Widget(rawValue: String(parts[1])) { self.env.settings.set(w, on: parts[2] == "on") }
+                case "update": self.env.updater.run()
                 case "timerpause": self.env.timer.toggle()
                 case "musicmute": self.env.music.toggleMute()
                 case "musicstop": self.env.music.stopForSession()

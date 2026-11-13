@@ -6,7 +6,7 @@ import SwiftUI
 enum Slide: String, CaseIterable, Identifiable {
     case home, board
     var id: String { rawValue }
-    var name: String { self == .home ? "Home" : "Your slide" }
+    var name: String { self == .home ? "Home" : "Nest" }
 }
 
 /// A tile the person can put on the second slide. To add one: a case here, its name, and its view in
@@ -62,7 +62,7 @@ extension AppSettings {
     func editQuickLinks() {
         let alert = NSAlert()
         alert.messageText = "Quick links"
-        alert.informativeText = "Up to \(QuickLink.limit) links on your slide. Leave a row empty to remove it."
+        alert.informativeText = "Up to \(QuickLink.limit) links in your Nest. Leave a row empty to remove it."
         let rowH: CGFloat = 30
         let box = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: rowH * CGFloat(QuickLink.limit)))
         var fields: [(NSTextField, NSTextField)] = []

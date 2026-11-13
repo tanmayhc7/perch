@@ -44,6 +44,7 @@ struct AppEnvironment {
     let prompt: PromptModel
     let focus: FocusLink
     let music: FocusMusic
+    let updater: Updater
 
     var spotify: PlayerModel { media.players[0] }
 
@@ -51,11 +52,12 @@ struct AppEnvironment {
         let settings = AppSettings()
         let state = NotchState(geometry: NotchGeometry.detect().geometry)
         let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)]),
-                                 shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(), music: FocusMusic())
+                                 shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(), music: FocusMusic(), updater: Updater())
         env.claude.onAlert = { [weak state] t in state?.push(t) }
         env.claude.finishAlertsEnabled = { settings.finishAlerts }
         env.calendar.onAlert = { [weak state] t in state?.push(t) }
         env.timer.onAlert = { [weak state] t in state?.push(t) }
+        env.updater.onAlert = { [weak state] t in state?.push(t) }
         ShelfModel.onProblem = { [weak state] t in state?.push(t) }
         env.focus.onAlert = { [weak state] t in state?.push(t) }
         env.focus.isEnabled = { settings.focusDND }
@@ -110,5 +112,6 @@ extension View {
             .environment(env.prompt)
             .environment(env.focus)
             .environment(env.music)
+            .environment(env.updater)
     }
 }

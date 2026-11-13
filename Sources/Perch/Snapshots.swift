@@ -48,7 +48,7 @@ enum Snapshots {
                               artwork: sampleArtwork(colors: [NSColor(red: 0.85, green: 0.45, blue: 0.25, alpha: 1), NSColor(red: 0.30, green: 0.12, blue: 0.35, alpha: 1)]))
             env.media.selectedID = FocusMusic.pageID
         }
-        shot(dir, "your-slide", theme: .ember) { env in
+        shot(dir, "nest", theme: .ember) { env in
             env.state.mode = .expanded
             env.state.slide = .board
             env.settings.disabledWidgets = []
@@ -97,7 +97,7 @@ enum Snapshots {
             ("focus-start", .ember, { env in focusMusic(env); env.media.selectedID = "spotify" }),
             ("focus-music", .ember, { env in focusMusic(env); env.media.selectedID = FocusMusic.pageID }),
             // The second slide: today's calendar beside the quick links.
-            ("your-slide", .ember, { env in
+            ("nest", .ember, { env in
                 env.state.mode = .expanded
                 env.state.slide = .board
                 env.settings.disabledWidgets = []
@@ -148,7 +148,7 @@ enum Snapshots {
         let state = NotchState(geometry: NotchGeometry(width: 185, height: 32, hasNotch: true, midX: 0, top: 0))
         let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)], persist: false),
                                  shelf: ShelfModel(), calendar: CalendarModel(defaults: UserDefaults(suiteName: "perch.snapshots")!), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(defaults: UserDefaults(suiteName: "perch.snapshots")!),
-                                 music: FocusMusic(defaults: UserDefaults(suiteName: "perch.snapshots")!))
+                                 music: FocusMusic(defaults: UserDefaults(suiteName: "perch.snapshots")!), updater: Updater())
         let now = Date()
         func req(_ minsAgo: Double, _ counted: Double) -> LedgerRequest {
             LedgerRequest(ts: now.addingTimeInterval(-minsAgo * 60), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, usd: counted / 220_000, counted: counted)

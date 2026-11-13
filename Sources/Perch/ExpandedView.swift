@@ -102,6 +102,7 @@ struct SettingsMenu: View {
     @Environment(FocusMusic.self) private var music
     @Environment(CalendarModel.self) private var calendar
     @Environment(NotchState.self) private var state
+    @Environment(Updater.self) private var updater
     @Environment(\.snapshotMode) private var snapshot
 
     var body: some View {
@@ -137,8 +138,8 @@ struct SettingsMenu: View {
                 }
                 Button("Add a Google or other account…") { CalendarModel.openAccountSettings() }
             }
-            Menu("Your slide") {
-                Section("Show on the second slide") {
+            Menu("Nest") {
+                Section("Show in your Nest (the second slide)") {
                     ForEach(Widget.allCases) { w in
                         Toggle(w.name, isOn: Binding(get: { settings.isOn(w) }, set: { on in
                             settings.set(w, on: on)
@@ -152,6 +153,8 @@ struct SettingsMenu: View {
             }
             Toggle("Open at login", isOn: $s.launchAtLogin)
             Divider()
+            Button(updater.menuTitle) { updater.run() }.disabled(updater.busy)
+            if let v = updater.current { Text("Version \(v)") }
             Button("Perch on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/tanmayhc7/perch")!) }
             Button("Quit Perch") { NSApp.terminate(nil) }
         } label: {
