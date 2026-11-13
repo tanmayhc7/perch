@@ -62,6 +62,10 @@ final class NotchState {
     var pinned = false
     var geometry: NotchGeometry
     var showingAnswer = false
+    /// Which slide of the open notch is showing (see `Slide`). Swiping sideways with two fingers changes it.
+    var slide: Slide = .home
+    /// The music tile's rectangle in the panel (top-left origin): sideways swipes there turn its own pages.
+    @ObservationIgnored var musicFrame: CGRect = .zero
 
     /// Set by the controller: views call these instead of changing `mode` themselves.
     @ObservationIgnored var expandAction: () -> Void = {}
@@ -155,6 +159,10 @@ final class AppSettings {
     var promptModel: String { didSet { d.set(promptModel, forKey: "promptModel") } }
     /// Turn on Do Not Disturb while the focus timer runs (through the Perch Focus shortcuts).
     var focusDND: Bool { didSet { d.set(focusDND, forKey: "focusDND") } }
+    /// Widgets taken off the second slide, by `Widget` raw value. Stored this way round so a new widget starts on.
+    var disabledWidgets: Set<String> { didSet { d.set(Array(disabledWidgets).sorted(), forKey: "disabledWidgets") } }
+    /// The Quick links tile's shortcuts (at most `QuickLink.limit`).
+    var quickLinks: [QuickLink] { didSet { d.set(try? JSONEncoder().encode(quickLinks), forKey: "quickLinks") } }
     var launchAtLogin: Bool {
         didSet {
             guard !syncingLogin, persist else { return }
@@ -178,6 +186,8 @@ final class AppSettings {
         hoverToExpand = d.bool(forKey: "hoverToExpand")
         finishAlerts = d.bool(forKey: "finishAlerts")
         focusDND = d.bool(forKey: "focusDND")
+        disabledWidgets = Set(d.stringArray(forKey: "disabledWidgets") ?? [])
+        quickLinks = d.data(forKey: "quickLinks").flatMap { try? JSONDecoder().decode([QuickLink].self, from: $0) } ?? QuickLink.starters
         let model = d.string(forKey: "promptModel") ?? "haiku"
         promptModel = PromptModel.models.contains { $0.id == model } ? model : "haiku"
         launchAtLogin = SMAppService.mainApp.status == .enabled

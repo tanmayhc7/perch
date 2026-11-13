@@ -26,7 +26,7 @@ struct ExpandedView: View {
                     AnswerPanel()
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 } else {
-                    TilesRow()
+                    SlideDeck()
                         .transition(.opacity)
                 }
             }
@@ -74,6 +74,7 @@ struct HeaderRow: View {
                 } else {
                     Text("perch").font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.6))
                 }
+                SlideDots().padding(.leading, 4)
                 Spacer(minLength: 0)
             }
             .padding(.leading, 4)
@@ -135,6 +136,19 @@ struct SettingsMenu: View {
                     if calendar.hiddenCount > 0 { Button("Show all calendars") { calendar.showAll() } }
                 }
                 Button("Add a Google or other account…") { CalendarModel.openAccountSettings() }
+            }
+            Menu("Your slide") {
+                Section("Show on the second slide") {
+                    ForEach(Widget.allCases) { w in
+                        Toggle(w.name, isOn: Binding(get: { settings.isOn(w) }, set: { on in
+                            settings.set(w, on: on)
+                            if settings.widgets.isEmpty { state.slide = .home }
+                        }))
+                    }
+                }
+                Divider()
+                Button("Edit quick links…") { settings.editQuickLinks() }
+                Text("Swipe sideways with two fingers to get there")
             }
             Toggle("Open at login", isOn: $s.launchAtLogin)
             Divider()
@@ -295,6 +309,7 @@ struct ClaudeTile: View {
 struct MusicTile: View {
     @Environment(MediaHub.self) private var media
     @Environment(FocusMusic.self) private var music
+    @Environment(NotchState.self) private var state
     @Environment(\.snapshotMode) private var snapshot
 
     /// A page in the tile: a music app, or the focus music once one is chosen.
@@ -310,6 +325,11 @@ struct MusicTile: View {
         let selected = pages.first { $0.id == media.selectedID } ?? pages[0]
         Tile(padding: 0) {
             ZStack(alignment: .topTrailing) {
+                // Tells the slide swipe where this tile is, while it has pages of its own to swipe through.
+                GeometryReader { geo in
+                    let frame = pages.count > 1 ? geo.frame(in: .global) : .zero
+                    Color.clear.onAppear { state.musicFrame = frame }.onChange(of: frame) { _, f in state.musicFrame = f }
+                }
                 if snapshot || pages.count < 2 {
                     page(selected, paged: pages.count > 1)
                 } else {

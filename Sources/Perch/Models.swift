@@ -122,8 +122,22 @@ final class CalendarModel {
         var calendars: [CalendarEntry]
     }
 
+    /// One entry of today's agenda (the Today slide).
+    struct DayEvent: Identifiable, Equatable {
+        var id: String
+        var title: String
+        var start: Date
+        var end: Date
+        var allDay: Bool
+        var color: NSColor
+        var calendar: String
+        var joinURL: URL?
+    }
+
     var access: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
     var next: Meeting?
+    /// Everything on today, all-day events first, then by start time. Includes events already over.
+    var today: [DayEvent] = []
     /// Every calendar on the Mac, by account. Google calendars appear here once the Google account is
     /// added in System Settings → Internet Accounts with Calendars switched on.
     private(set) var groups: [CalendarGroup] = []
@@ -195,12 +209,13 @@ final class CalendarModel {
 
     func reload() {
         access = EKEventStore.authorizationStatus(for: .event)
-        guard hasAccess else { next = nil; groups = []; return }
+        guard hasAccess else { next = nil; today = []; groups = []; return }
         loadGroups()
         // nil would mean every calendar, so nothing selected has to be handled apart.
         let allowed = store.calendars(for: .event).filter { !hidden.contains($0.calendarIdentifier) }
-        guard !allowed.isEmpty else { next = nil; return }
+        guard !allowed.isEmpty else { next = nil; today = []; return }
         let now = Date()
+        loadToday(allowed, now: now)
         let pred = store.predicateForEvents(withStart: now.addingTimeInterval(-15 * 60), end: now.addingTimeInterval(24 * 3600), calendars: allowed)
         let events = store.events(matching: pred)
             .filter { !$0.isAllDay && $0.endDate > now && $0.status != .canceled }
@@ -221,6 +236,21 @@ final class CalendarModel {
             let url = m.joinURL
             onAlert?(Toast(symbol: "video.fill", tint: .calm, title: m.title, subtitle: "Starts in \(max(1, Int(until / 60))) min",
                            actionTitle: url == nil ? nil : "Join", action: url.map { u in { NSWorkspace.shared.open(u) } }, seconds: 12))
+        }
+    }
+
+    private func loadToday(_ calendars: [EKCalendar], now: Date) {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: now)
+        let end = cal.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        let events = store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: calendars))
+            .filter { $0.status != .canceled }
+            .filter { $0.attendees?.first(where: { $0.isCurrentUser })?.participantStatus != .declined }
+            .sorted { ($0.isAllDay ? 0 : 1, $0.startDate) < ($1.isAllDay ? 0 : 1, $1.startDate) }
+        today = events.map { e in
+            DayEvent(id: "\(e.eventIdentifier ?? e.title ?? "")-\(e.startDate.timeIntervalSince1970)", title: e.title ?? "Event",
+                     start: e.startDate, end: e.endDate, allDay: e.isAllDay, color: e.calendar?.color ?? .systemBlue,
+                     calendar: e.calendar?.title ?? "", joinURL: Self.joinURL(e))
         }
     }
 
