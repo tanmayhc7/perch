@@ -3,14 +3,23 @@ import CryptoKit
 
 /// "Check for updates" in the menu: one click finds the latest release on GitHub, downloads it,
 /// checks it against GitHub's checksum, swaps this app for it and reopens Perch.
-/// Nothing is contacted until the person clicks.
+/// Unless the person turns "Tell me when an update is out" off, Perch also asks GitHub once a day
+/// whether a newer release exists, and says so (a notice, and a dot on the menu); it never installs on its own.
 @MainActor @Observable
 final class Updater {
     enum Phase: Equatable { case idle, checking, downloading(String), installing(String) }
 
     static let repo = "tanmayhc7/perch"
     private(set) var phase: Phase = .idle
+    /// The version of a newer release found by the daily check (for example "0.5.0").
+    private(set) var available: String?
     @ObservationIgnored var onAlert: ((Toast) -> Void)?
+    /// Whether the daily check is allowed (the menu setting).
+    @ObservationIgnored var noticesOn: () -> Bool = { true }
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private var quietRunning = false
+
+    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
     /// This copy's version ("0.3.3"), or nil when run outside an app bundle (a development build).
     var current: String? { appURL == nil ? nil : Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String }
@@ -18,7 +27,7 @@ final class Updater {
 
     var menuTitle: String {
         switch phase {
-        case .idle: "Check for updates"
+        case .idle: available.map { "Update to Perch \($0)" } ?? "Check for updates"
         case .checking: "Checking for updates…"
         case .downloading(let v): "Downloading Perch \(v)…"
         case .installing(let v): "Installing Perch \(v)…"
@@ -56,7 +65,7 @@ final class Updater {
         }
     }
 
-    private func update() async throws {
+    private func latestRelease() async throws -> (release: Release, version: String) {
         var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(Self.repo)/releases/latest")!)
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.cachePolicy = .reloadIgnoringLocalCacheData
@@ -64,12 +73,36 @@ final class Updater {
         guard (response as? HTTPURLResponse)?.statusCode == 200, let release = try? JSONDecoder().decode(Release.self, from: data) else {
             throw Problem(title: "Couldn't check for updates", detail: "GitHub didn't answer; try again in a minute")
         }
-        let latest = release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name
+        return (release, release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name)
+    }
+
+    /// The daily check: asks GitHub at most once every 24 hours (when allowed), and tells the person once per
+    /// new version. Quiet when nothing is new or GitHub can't be reached.
+    func checkQuietly(force: Bool = false) {
+        guard noticesOn(), phase == .idle, !quietRunning, let current else { return }
+        if !force, let last = defaults.object(forKey: "lastUpdateCheck") as? Date, Date().timeIntervalSince(last) < 24 * 3600 { return }
+        quietRunning = true
+        Task {
+            defer { quietRunning = false }
+            guard let latest = try? await latestRelease().version else { return }
+            defaults.set(Date(), forKey: "lastUpdateCheck")
+            guard Self.isNewer(latest, than: current) else { available = nil; return }
+            available = latest
+            guard defaults.string(forKey: "notifiedUpdate") != latest else { return }
+            defaults.set(latest, forKey: "notifiedUpdate")
+            onAlert?(Toast(symbol: "arrow.down.circle.fill", title: "Perch \(latest) is available",
+                           subtitle: "You have \(current)", actionTitle: "Update", action: { [weak self] in self?.run() }, seconds: 12))
+        }
+    }
+
+    private func update() async throws {
+        let (release, latest) = try await latestRelease()
         guard let appURL, let current else {
             throw Problem(title: "Perch \(latest) is the latest", detail: "This is a development build; it doesn't update itself")
         }
         guard Self.isNewer(latest, than: current) else {
             phase = .idle
+            available = nil
             onAlert?(Toast(symbol: "checkmark.circle.fill", tint: .calm, title: "Perch is up to date", subtitle: "Version \(current)"))
             return
         }
