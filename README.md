@@ -168,10 +168,11 @@ Open **Terminal** (press **Cmd + Space**, type `Terminal`, press Return), paste 
 curl -fsSL https://raw.githubusercontent.com/tanmayhc7/perch/main/install.sh | bash
 ```
 
-That's all: no Git, no Xcode, no password. Perch is installed in **Applications** and opens. To update later, open the notch and
-choose **⋯ → Check for updates**: Perch downloads the latest release, checks it against GitHub's checksum, replaces
-itself and reopens. No Terminal needed. (Running the line above again does the same.) Perch only looks for updates
-when you click; an update can make macOS ask for Calendar access again, because each release is signed afresh.
+That's all: no Git, no Xcode, no password. Perch is installed in **Applications** and opens. When a newer version is out, Perch
+tells you (a notice, and a dot beside **⋯**; you can turn this off in the menu). To update, click **Update** in the
+notice or choose **⋯ → Update to Perch …** (or **Check for updates** at any time): Perch downloads the latest release,
+checks it against GitHub's checksum, replaces itself and reopens. No Terminal needed. (Running the line above again
+does the same.) An update can make macOS ask for Calendar access again, because each release is signed afresh.
 
 The script ([install.sh](install.sh), about 100 lines, worth a read before you run it) finds the latest
 [release](https://github.com/tanmayhc7/perch/releases/latest), downloads it, checks it against the checksum GitHub lists
@@ -220,7 +221,7 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 | `Sources/Perch/*Model*.swift` | Claude, music players, shelf, calendar, timer and prompt models; `AutoPalette.swift` picks the Auto theme's colours |
 | `Sources/Perch/RootView.swift`, `ExpandedView.swift` | The SwiftUI views |
 | `Sources/Perch/Slides.swift`, `NestWidgets.swift`, `WidgetModels.swift` | The Nest: slides, how widgets are paged three to a slide, each widget's view, and the models behind them |
-| `Sources/Perch/Updater.swift` | **Check for updates**: downloads the latest release, checks it and swaps the app |
+| `Sources/Perch/Updater.swift` | Updates: the daily "update available" check, and the one-click download, checksum check and swap |
 | `scripts/build-app.sh` | Builds a universal `.app` and the release zip with SwiftPM only |
 | `scripts/focus-shortcut.py` | Generates and signs the two Focus shortcuts in `Resources/` |
 | `Sources/Perch/FocusLink.swift` | Runs those shortcuts for the focus timer, with crash and sleep recovery |
@@ -240,7 +241,7 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
   Mac can reach (127.0.0.1) while the music plays.
 - The Focus option runs the two Perch shortcuts on your Mac with Apple's `shortcuts` command. They read and set your Focus and nothing else.
 - Nest widgets only run once you switch them on. **Clipboard history** watches what you copy (text only, in memory, never saved or sent). **GitHub** runs your own `gh` command to ask GitHub for your pull requests. **Weather** sends the city you typed, then its coordinates, to open-meteo.com. The others read from your Mac.
-- **Check for updates** contacts GitHub (api.github.com, then the release download) only when you click it. Perch never checks on its own.
+- **Updates.** Once a day, Perch asks GitHub (api.github.com) whether a newer release exists, and tells you with a notice and a dot beside **⋯**. That request carries no personal data, and Perch never installs anything by itself: the download only starts when you click **Update**. Turn it off with **⋯ → Tell me when an update is out**; **Check for updates** then still works whenever you click it.
 - Files on the shelf are only referenced, never copied or uploaded. AirDrop uses macOS's own AirDrop sheet.
 
 ## Signing and notarization

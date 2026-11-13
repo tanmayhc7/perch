@@ -160,6 +160,7 @@ struct SettingsMenu: View {
             Toggle("Open at login", isOn: $s.launchAtLogin)
             Divider()
             Button(updater.menuTitle) { updater.run() }.disabled(updater.busy)
+            Toggle("Tell me when an update is out", isOn: $s.updateNotices)
             if let v = updater.current { Text("Version \(v)") }
             Button("Perch on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/tanmayhc7/perch")!) }
             Button("Quit Perch") { NSApp.terminate(nil) }
@@ -173,6 +174,12 @@ struct SettingsMenu: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+        // A dot while an update is waiting, so it's noticed without opening the menu.
+        .overlay(alignment: .topTrailing) {
+            if updater.available != nil {
+                Circle().fill(settings.theme.accent).frame(width: 7, height: 7).offset(x: -2, y: 1).allowsHitTesting(false)
+            }
+        }
         .snapshotStandIn(snapshot) {
             Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)).foregroundStyle(.white.opacity(0.7)).frame(width: 26, height: 22)
         }

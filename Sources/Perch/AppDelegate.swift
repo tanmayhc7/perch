@@ -59,6 +59,9 @@ struct AppEnvironment {
         env.calendar.onAlert = { [weak state] t in state?.push(t) }
         env.timer.onAlert = { [weak state] t in state?.push(t) }
         env.updater.onAlert = { [weak state] t in state?.push(t) }
+        env.updater.noticesOn = { settings.updateNotices }
+        // A little after launch, so it never slows the start.
+        Task { @MainActor in try? await Task.sleep(for: .seconds(20)); env.updater.checkQuietly() }
         env.widgets.isOn = { settings.isOn($0) }
         env.widgets.onAlert = { [weak state] t in state?.push(t) }
         env.widgets.start()

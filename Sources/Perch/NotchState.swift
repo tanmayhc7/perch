@@ -164,6 +164,8 @@ final class AppSettings {
     var promptModel: String { didSet { d.set(promptModel, forKey: "promptModel") } }
     /// Turn on Do Not Disturb while the focus timer runs (through the Perch Focus shortcuts).
     var focusDND: Bool { didSet { d.set(focusDND, forKey: "focusDND") } }
+    /// Tell the person when a newer release is out (a once-a-day check with GitHub). On unless switched off.
+    var updateNotices: Bool { didSet { d.set(updateNotices, forKey: "updateNotices") } }
     /// The widgets in the Nest, by `Widget` raw value. New widgets start off: some read your clipboard, GitHub or
     /// location, which should only happen once you've asked for them.
     var enabledWidgets: Set<String> { didSet { d.set(Array(enabledWidgets).sorted(), forKey: "enabledWidgets") } }
@@ -189,11 +191,12 @@ final class AppSettings {
     init(persist: Bool = true) {
         self.persist = persist
         d = persist ? .standard : UserDefaults(suiteName: "perch.snapshots")!
-        d.register(defaults: ["theme": Theme.auto.rawValue, "hoverToExpand": true, "finishAlerts": true, "promptModel": "haiku"])
+        d.register(defaults: ["theme": Theme.auto.rawValue, "hoverToExpand": true, "finishAlerts": true, "promptModel": "haiku", "updateNotices": true])
         theme = Theme(rawValue: d.string(forKey: "theme") ?? "") ?? .auto
         hoverToExpand = d.bool(forKey: "hoverToExpand")
         finishAlerts = d.bool(forKey: "finishAlerts")
         focusDND = d.bool(forKey: "focusDND")
+        updateNotices = d.bool(forKey: "updateNotices")
         // Before widgets could be chosen one by one, the calendar and links were on unless switched off.
         let switchedOff = Set(d.stringArray(forKey: "disabledWidgets") ?? [])
         enabledWidgets = Set(d.stringArray(forKey: "enabledWidgets")

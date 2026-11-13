@@ -112,6 +112,13 @@ final class NotchController {
                 case "key": self.focusPrompt()
                 case "engage": self.env.state.engaged.toggle()
                 case "update": self.env.updater.run()
+                case "updatecheck":
+                    self.env.updater.checkQuietly(force: true)
+                case "updatestate":
+                    let line = "available=\(self.env.updater.available ?? "-") current=\(self.env.updater.current ?? "-") title=\(self.env.updater.menuTitle) notices=\(self.env.settings.updateNotices)\n"
+                    if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
+                        h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+                    }
                 case "timerpause": self.env.timer.toggle()
                 case "musicmute": self.env.music.toggleMute()
                 case "musicstop": self.env.music.stopForSession()
@@ -289,6 +296,7 @@ final class NotchController {
         for p in env.media.players where p.running { p.refresh() }
         env.claude.refresh()
         env.widgets.opened()
+        env.updater.checkQuietly()
         // EventKit queries can take a while; run them after the first frame is on screen.
         DispatchQueue.main.async { [env] in env.calendar.reload() }
         let t2 = CFAbsoluteTimeGetCurrent()
