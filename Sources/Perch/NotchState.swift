@@ -164,8 +164,11 @@ final class AppSettings {
     var promptModel: String { didSet { d.set(promptModel, forKey: "promptModel") } }
     /// Turn on Do Not Disturb while the focus timer runs (through the Perch Focus shortcuts).
     var focusDND: Bool { didSet { d.set(focusDND, forKey: "focusDND") } }
-    /// Widgets taken off the second slide, by `Widget` raw value. Stored this way round so a new widget starts on.
-    var disabledWidgets: Set<String> { didSet { d.set(Array(disabledWidgets).sorted(), forKey: "disabledWidgets") } }
+    /// The widgets in the Nest, by `Widget` raw value. New widgets start off: some read your clipboard, GitHub or
+    /// location, which should only happen once you've asked for them.
+    var enabledWidgets: Set<String> { didSet { d.set(Array(enabledWidgets).sorted(), forKey: "enabledWidgets") } }
+    /// The Scratchpad widget's text.
+    var scratchpad: String { didSet { d.set(String(scratchpad.prefix(20_000)), forKey: "scratchpad") } }
     /// The Quick links tile's shortcuts (at most `QuickLink.limit`).
     var quickLinks: [QuickLink] { didSet { d.set(try? JSONEncoder().encode(quickLinks), forKey: "quickLinks") } }
     var launchAtLogin: Bool {
@@ -191,7 +194,11 @@ final class AppSettings {
         hoverToExpand = d.bool(forKey: "hoverToExpand")
         finishAlerts = d.bool(forKey: "finishAlerts")
         focusDND = d.bool(forKey: "focusDND")
-        disabledWidgets = Set(d.stringArray(forKey: "disabledWidgets") ?? [])
+        // Before widgets could be chosen one by one, the calendar and links were on unless switched off.
+        let switchedOff = Set(d.stringArray(forKey: "disabledWidgets") ?? [])
+        enabledWidgets = Set(d.stringArray(forKey: "enabledWidgets")
+                             ?? [Widget.calendar, .links].map(\.rawValue).filter { !switchedOff.contains($0) })
+        scratchpad = d.string(forKey: "scratchpad") ?? ""
         quickLinks = d.data(forKey: "quickLinks").flatMap { try? JSONDecoder().decode([QuickLink].self, from: $0) } ?? QuickLink.starters
         let model = d.string(forKey: "promptModel") ?? "haiku"
         promptModel = PromptModel.models.contains { $0.id == model } ? model : "haiku"

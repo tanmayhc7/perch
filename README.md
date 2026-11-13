@@ -7,7 +7,7 @@
 <p align="center">
 Your MacBook's notch, turned into a live Claude Code dashboard,<br>
 a Spotify and Apple Music remote, an AirDrop and file shelf, a focus timer with its own music,<br>
-your next meeting, a second slide (your Nest) for today's calendar and quick links, and a one-line Claude prompt.
+your next meeting, a Nest of extra slides (today's calendar, quick links, clipboard history, GitHub, weather and more), and a one-line Claude prompt.
 </p>
 
 <p align="center"><a href="docs/media/perch.mp4"><img src="docs/media/perch.gif" width="860" alt="Perch in 25 seconds: the notch lights up while Claude responds, springs open into a dashboard of tokens, burn rate and budget, answers a question typed into the Ask Claude bar, takes a dropped file for AirDrop or the shelf, swipes from Spotify to Apple Music, swipes to a second slide with today's calendar and quick links, starts a 25-minute focus timer whose YouTube focus music takes over the music tile, then turns from the Auto theme to clear Glass with a sunset showing through"></a><br>
@@ -76,19 +76,34 @@ To bring in Google Calendar, add your Google account in System Settings → Inte
 on your Mac by macOS.
 
 ### Nest
-The open notch has a second slide, your **Nest**. **Swipe sideways with two fingers** anywhere on the notch except the music tile
-(which turns its own pages), or click the dots next to "perch", to move between it and the main one. You choose what's
-on it under **⋯ → Nest**:
+The open notch has more slides, your **Nest**. **Swipe sideways with two fingers** anywhere on the notch except the music tile
+(which turns its own pages), or click the dots next to "perch", to move between slides. You choose what's in the Nest
+under **⋯ → Nest**. Widgets go three to a slide, and **a new slide appears by itself** when you switch on more than three.
+Only today's calendar and quick links are on to start with; the rest wait until you switch them on.
 
 - **Today's calendar**: everything on today from the calendars you've switched on. All-day events sit along the top,
   then the day in time order: the event on now is highlighted, earlier ones are dimmed, and video meetings get a
   **Join** button. It opens at what's on now; scroll up for the morning.
 - **Quick links**: up to four links you open often (it starts with Claude, GitHub and Gmail). A click opens the link
   in your default browser. Change them with the pencil on the tile or **⋯ → Nest → Edit quick links…**.
+- **Clipboard history**: the last ten things you copied as text, newest first; click one to copy it again. It lives in
+  memory only, is emptied when you switch the widget off, and skips anything a password manager marks as secret.
+- **GitHub**: pull requests waiting for your review, and your own open ones with a dot for their checks (green, amber,
+  red). It reads them through the [GitHub CLI](https://cli.github.com) (`gh`) you're signed in with, and only while
+  the notch is open. Click one to open it.
+- **Scratchpad**: a small text area that saves as you type, kept on your Mac.
+- **System glance**: battery, processor and memory load, free disk space, and the battery of a connected Bluetooth
+  device such as AirPods. It updates every two seconds while the notch is open.
+- **Weather**: the temperature, conditions and today's high and low for a city you type in (°F or °C by your region).
+- **Volume & brightness**: two sliders for the output volume (click the speaker to mute) and the built-in display.
+  Brightness uses a macOS system library with no public documentation, so it may stop working in a future macOS; the
+  slider then simply disappears.
 
-With both on they sit side by side; one alone takes the whole slide; turn both off and the Nest goes away.
+With one or two widgets on a slide, they share its width; the calendar always gets twice a quick-links tile's share.
 
-<p align="center"><img src="docs/images/nest.png" width="860" alt="The second slide: today's date and agenda on the left, with the current meeting highlighted and Join buttons, and a Quick links tile on the right with Claude, GitHub and Gmail"></p>
+<p align="center"><img src="docs/images/nest.png" width="860" alt="The Nest's first slide: today's date and agenda on the left with the current meeting highlighted and Join buttons, and a Quick links tile on the right with Claude, GitHub and Gmail"></p>
+<p align="center"><img src="docs/images/nest-more.png" width="860" alt="A Nest slide with GitHub (pull requests to review and your own with check status), a Scratchpad and a System glance tile"></p>
+<p align="center"><img src="docs/images/nest-system.png" width="860" alt="A Nest slide with a Weather tile and Volume and brightness sliders"></p>
 
 ### Focus timer
 25, 50 or 5 minutes. The countdown ring sits beside the closed notch, and a chime plus a slide-out tell you when it's done.
@@ -204,7 +219,7 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 | `Sources/Perch/NotchController.swift` | The borderless panel over the notch, hover and drag detection |
 | `Sources/Perch/*Model*.swift` | Claude, music players, shelf, calendar, timer and prompt models; `AutoPalette.swift` picks the Auto theme's colours |
 | `Sources/Perch/RootView.swift`, `ExpandedView.swift` | The SwiftUI views |
-| `Sources/Perch/Slides.swift` | The slides of the open notch, and the Nest's widgets (today's calendar, quick links) |
+| `Sources/Perch/Slides.swift`, `NestWidgets.swift`, `WidgetModels.swift` | The Nest: slides, how widgets are paged three to a slide, each widget's view, and the models behind them |
 | `Sources/Perch/Updater.swift` | **Check for updates**: downloads the latest release, checks it and swaps the app |
 | `scripts/build-app.sh` | Builds a universal `.app` and the release zip with SwiftPM only |
 | `scripts/focus-shortcut.py` | Generates and signs the two Focus shortcuts in `Resources/` |
@@ -224,6 +239,7 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
   Brave, that page runs in a private Brave profile of Perch's own, controlled through a debugging port that only your
   Mac can reach (127.0.0.1) while the music plays.
 - The Focus option runs the two Perch shortcuts on your Mac with Apple's `shortcuts` command. They read and set your Focus and nothing else.
+- Nest widgets only run once you switch them on. **Clipboard history** watches what you copy (text only, in memory, never saved or sent). **GitHub** runs your own `gh` command to ask GitHub for your pull requests. **Weather** sends the city you typed, then its coordinates, to open-meteo.com. The others read from your Mac.
 - **Check for updates** contacts GitHub (api.github.com, then the release download) only when you click it. Perch never checks on its own.
 - Files on the shelf are only referenced, never copied or uploaded. AirDrop uses macOS's own AirDrop sheet.
 
