@@ -7,7 +7,7 @@
 <p align="center">
 Your MacBook's notch, turned into a live Claude Code dashboard,<br>
 a Spotify and Apple Music remote, an AirDrop and file shelf, a focus timer with its own music,<br>
-your next meeting, and a one-line Claude prompt.
+your next meeting, a second slide for today's calendar and quick links, and a one-line Claude prompt.
 </p>
 
 <p align="center"><a href="docs/media/perch.mp4"><img src="docs/media/perch.gif" width="860" alt="Perch in 25 seconds: the notch lights up while Claude responds, springs open into a dashboard of tokens, burn rate and budget, answers a question typed into the Ask Claude bar, takes a dropped file for AirDrop or the shelf, swipes from Spotify to Apple Music, starts a 25-minute focus timer whose YouTube focus music takes over the music tile, then turns from the Auto theme to clear Glass with a sunset showing through"></a><br>
@@ -74,6 +74,21 @@ where they're grouped by account with a checkmark each; a calendar you add later
 To bring in Google Calendar, add your Google account in System Settings → Internet Accounts and switch on Calendars
 (**⋯ → Calendars → Add a Google or other account…** opens it). Nothing goes through Google directly: events are read
 on your Mac by macOS.
+
+### Your slide
+The open notch has a second slide. **Swipe sideways with two fingers** anywhere on the notch except the music tile
+(which turns its own pages), or click the dots next to "perch", to move between it and the main one. You choose what's
+on it under **⋯ → Your slide**:
+
+- **Today's calendar**: everything on today from the calendars you've switched on. All-day events sit along the top,
+  then the day in time order: the event on now is highlighted, earlier ones are dimmed, and video meetings get a
+  **Join** button. It opens at what's on now; scroll up for the morning.
+- **Quick links**: up to four links you open often (it starts with Claude, GitHub and Gmail). A click opens the link
+  in your default browser. Change them with the pencil on the tile or **⋯ → Your slide → Edit quick links…**.
+
+With both on they sit side by side; one alone takes the whole slide; turn both off and the second slide goes away.
+
+<p align="center"><img src="docs/images/your-slide.png" width="860" alt="The second slide: today's date and agenda on the left, with the current meeting highlighted and Join buttons, and a Quick links tile on the right with Claude, GitHub and Gmail"></p>
 
 ### Focus timer
 25, 50 or 5 minutes. The countdown ring sits beside the closed notch, and a chime plus a slide-out tell you when it's done.
@@ -187,6 +202,7 @@ swift run Perch --snapshot docs/images   # re-render the README screenshots from
 | `Sources/Perch/NotchController.swift` | The borderless panel over the notch, hover and drag detection |
 | `Sources/Perch/*Model*.swift` | Claude, music players, shelf, calendar, timer and prompt models; `AutoPalette.swift` picks the Auto theme's colours |
 | `Sources/Perch/RootView.swift`, `ExpandedView.swift` | The SwiftUI views |
+| `Sources/Perch/Slides.swift` | The slides of the open notch, and the second slide's widgets (today's calendar, quick links) |
 | `scripts/build-app.sh` | Builds a universal `.app` and the release zip with SwiftPM only |
 | `scripts/focus-shortcut.py` | Generates and signs the two Focus shortcuts in `Resources/` |
 | `Sources/Perch/FocusLink.swift` | Runs those shortcuts for the focus timer, with crash and sleep recovery |

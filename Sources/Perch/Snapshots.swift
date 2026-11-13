@@ -48,17 +48,11 @@ enum Snapshots {
                               artwork: sampleArtwork(colors: [NSColor(red: 0.85, green: 0.45, blue: 0.25, alpha: 1), NSColor(red: 0.30, green: 0.12, blue: 0.35, alpha: 1)]))
             env.media.selectedID = FocusMusic.pageID
         }
-        shot(dir, "today", theme: .ember) { env in
+        shot(dir, "your-slide", theme: .ember) { env in
             env.state.mode = .expanded
             env.state.slide = .board
             env.settings.disabledWidgets = []
             env.settings.quickLinks = QuickLink.starters
-        }
-        shot(dir, "board-links", theme: .ember) { env in
-            env.state.mode = .expanded
-            env.state.slide = .board
-            env.settings.disabledWidgets = ["calendar"]
-            env.settings.quickLinks = QuickLink.starters + [QuickLink(title: "Linear", url: "linear.app")]
         }
         for wp in SampleWallpaper.all {
             let img = wp.image()
