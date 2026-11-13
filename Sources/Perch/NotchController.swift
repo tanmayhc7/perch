@@ -19,6 +19,9 @@ final class NotchController {
     private var dragTimer: Timer?
     private var dragChangeCount = 0
     private var collapseWork: DispatchWorkItem?
+    private var swipe = CGPoint.zero
+    private var swipeFired = false
+    private var swipeIgnored = false
     private var screen: NSScreen?
     /// The app that was in front before the prompt took focus; it gets focus back on collapse.
     private var previousApp: NSRunningApplication?
@@ -28,6 +31,9 @@ final class NotchController {
     func show() {
         let p = NotchPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.isFloatingPanel = true
+        // Clicking a tile or a button doesn't take keyboard focus; only the prompt field does. A focused
+        // window makes Liquid Glass (the Glass theme) draw clearer, which washed the tiles out on every click.
+        p.becomesKeyOnlyIfNeeded = true
         p.level = .statusBar + 1
         p.backgroundColor = .clear
         p.isOpaque = false
@@ -61,6 +67,11 @@ final class NotchController {
                 self.env.calendar.reload()
             }
         }
+        for (name, key) in [(NSWindow.didBecomeKeyNotification, true), (NSWindow.didResignKeyNotification, false)] {
+            NotificationCenter.default.addObserver(forName: name, object: p, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.env.state.hasKeyboard = key; if key { self?.env.state.engaged = true } }
+            }
+        }
         installMonitors()
         observeState()
         if ProcessInfo.processInfo.environment["PERCH_DEBUG"] == "1" { installDebugHooks() }
@@ -82,6 +93,17 @@ final class NotchController {
                 case "quit": NSApp.terminate(nil)
                 case _ where cmd.hasPrefix("timer:"): self.env.timer.start(minutes: Double(cmd.dropFirst(6)) ?? 1, label: "Focus")
                 case "focusstate": NSLog("Perch focus: setup=\(self.env.focus.setup) active=\(self.env.focus.active) toast=\(self.env.state.toast?.title ?? "-") music=\(self.env.music.title ?? "-")/session=\(self.env.music.inSession)/playing=\(self.env.music.playing)/muted=\(self.env.music.muted)")
+                case _ where cmd.hasPrefix("slide:"):
+                    if cmd == "slide:next" { self.env.state.step(1, in: self.env.settings.slides) }
+                    else if cmd == "slide:prev" { self.env.state.step(-1, in: self.env.settings.slides) }
+                    else if let s = Slide(rawValue: String(cmd.dropFirst(6))) { self.env.state.slide = s }
+                case _ where cmd.hasPrefix("widget:"):
+                    // widget:links:off, widget:calendar:on
+                    let parts = cmd.split(separator: ":")
+                    if parts.count == 3, let w = Widget(rawValue: String(parts[1])) { self.env.settings.set(w, on: parts[2] == "on") }
+                case "key": self.focusPrompt()
+                case "engage": self.env.state.engaged.toggle()
+                case "update": self.env.updater.run()
                 case "timerpause": self.env.timer.toggle()
                 case "musicmute": self.env.music.toggleMute()
                 case "musicstop": self.env.music.stopForSession()
@@ -155,10 +177,47 @@ final class NotchController {
         monitors.append(NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
             MainActor.assumeIsolated { self?.mouseDown() }
         } as Any)
+        // A click inside the open notch: the person is using it (see `NotchState.engaged`).
+        monitors.append(NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] e in
+            MainActor.assumeIsolated {
+                guard let self, e.window === self.panel, self.env.state.isExpanded else { return }
+                self.env.state.engaged = true
+            }
+            return e
+        } as Any)
+        // Two fingers sideways on the open notch switch slides.
+        monitors.append(NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] e in
+            MainActor.assumeIsolated { self?.scrolled(e) }
+            return e
+        } as Any)
         monitors.append(NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
             // A click anywhere else closes the notch, even if the prompt is pinned.
             MainActor.assumeIsolated { self?.clickOutside() }
         } as Any)
+    }
+
+    /// A trackpad swipe: once it has travelled far enough sideways, move one slide, once per gesture.
+    private func scrolled(_ e: NSEvent) {
+        // Only fingers on the trackpad (not the glide after lifting, nor a mouse wheel).
+        guard e.window === panel, env.state.isExpanded, !env.state.dropMode, env.prompt.phase == .idle,
+              e.momentumPhase.isEmpty, !e.phase.isEmpty else { return }
+        if e.phase.contains(.began) {
+            swipe = .zero
+            swipeFired = false
+            // The music tile turns its own pages (Spotify, Apple Music, focus music).
+            let p = CGPoint(x: e.locationInWindow.x, y: (panel.contentView?.bounds.height ?? 0) - e.locationInWindow.y)
+            swipeIgnored = env.state.musicFrame.contains(p) && env.state.slide == .home
+        }
+        guard !swipeIgnored, !swipeFired else { return }
+        // Follow the fingers whichever way "natural scrolling" is set.
+        let dx = e.isDirectionInvertedFromDevice ? e.scrollingDeltaX : -e.scrollingDeltaX
+        swipe.x += dx
+        swipe.y += e.scrollingDeltaY
+        if abs(swipe.x) > 45, abs(swipe.x) > abs(swipe.y) * 1.5 {
+            swipeFired = true
+            // Fingers to the left bring in the slide on the right.
+            env.state.step(swipe.x < 0 ? 1 : -1, in: env.settings.slides)
+        }
     }
 
     /// The shape's current rectangle in screen coordinates, plus some slack.
@@ -238,6 +297,7 @@ final class NotchController {
     /// Not after a click somewhere else: that click already chose where focus goes.
     func collapse(restoreFocus: Bool) {
         env.state.mode = .collapsed
+        env.state.engaged = false
         env.state.pinned = false
         env.state.dropMode = false
         if panel.isKeyWindow {

@@ -48,6 +48,12 @@ enum Snapshots {
                               artwork: sampleArtwork(colors: [NSColor(red: 0.85, green: 0.45, blue: 0.25, alpha: 1), NSColor(red: 0.30, green: 0.12, blue: 0.35, alpha: 1)]))
             env.media.selectedID = FocusMusic.pageID
         }
+        shot(dir, "nest", theme: .ember) { env in
+            env.state.mode = .expanded
+            env.state.slide = .board
+            env.settings.disabledWidgets = []
+            env.settings.quickLinks = QuickLink.starters
+        }
         for wp in SampleWallpaper.all {
             let img = wp.image()
             AutoPalette.shared.set(from: img)
@@ -90,6 +96,13 @@ enum Snapshots {
             // A focus timer starts and its music takes over the music tile.
             ("focus-start", .ember, { env in focusMusic(env); env.media.selectedID = "spotify" }),
             ("focus-music", .ember, { env in focusMusic(env); env.media.selectedID = FocusMusic.pageID }),
+            // The second slide: today's calendar beside the quick links.
+            ("nest", .ember, { env in
+                env.state.mode = .expanded
+                env.state.slide = .board
+                env.settings.disabledWidgets = []
+                env.settings.quickLinks = QuickLink.starters
+            }),
         ]
         func focusMusic(_ env: AppEnvironment) {
             env.state.mode = .expanded
@@ -135,7 +148,7 @@ enum Snapshots {
         let state = NotchState(geometry: NotchGeometry(width: 185, height: 32, hasNotch: true, midX: 0, top: 0))
         let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)], persist: false),
                                  shelf: ShelfModel(), calendar: CalendarModel(defaults: UserDefaults(suiteName: "perch.snapshots")!), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(defaults: UserDefaults(suiteName: "perch.snapshots")!),
-                                 music: FocusMusic(defaults: UserDefaults(suiteName: "perch.snapshots")!))
+                                 music: FocusMusic(defaults: UserDefaults(suiteName: "perch.snapshots")!), updater: Updater())
         let now = Date()
         func req(_ minsAgo: Double, _ counted: Double) -> LedgerRequest {
             LedgerRequest(ts: now.addingTimeInterval(-minsAgo * 60), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, usd: counted / 220_000, counted: counted)
@@ -174,6 +187,16 @@ enum Snapshots {
         env.calendar.access = .fullAccess
         env.calendar.next = .init(title: "Design review", start: now.addingTimeInterval(7 * 60 + 20), end: now.addingTimeInterval(40 * 60),
                                   joinURL: URL(string: "https://meet.google.com/abc-defg-hij"), color: .systemPurple)
+        func at(_ h: Double) -> Date { now.addingTimeInterval(h * 3600) }
+        env.calendar.today = [
+            .init(id: "a", title: "Mira's birthday", start: at(-9), end: at(15), allDay: true, color: .systemPink, calendar: "Home"),
+            .init(id: "b", title: "Standup", start: at(-2.5), end: at(-2.25), allDay: false, color: .systemBlue, calendar: "Work"),
+            .init(id: "c", title: "Roadmap sync", start: at(-0.3), end: at(0.2), allDay: false, color: .systemOrange, calendar: "Work",
+                  joinURL: URL(string: "https://meet.google.com/abc-defg-hij")),
+            .init(id: "d", title: "Design review", start: at(0.4), end: at(0.9), allDay: false, color: .systemPurple, calendar: "Work",
+                  joinURL: URL(string: "https://meet.google.com/abc-defg-hij")),
+            .init(id: "e", title: "Gym", start: at(3), end: at(4), allDay: false, color: .systemGreen, calendar: "Home"),
+        ]
         return env
     }
 

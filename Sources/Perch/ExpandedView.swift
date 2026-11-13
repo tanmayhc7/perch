@@ -26,7 +26,7 @@ struct ExpandedView: View {
                     AnswerPanel()
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 } else {
-                    TilesRow()
+                    SlideDeck()
                         .transition(.opacity)
                 }
             }
@@ -74,6 +74,7 @@ struct HeaderRow: View {
                 } else {
                     Text("perch").font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.6))
                 }
+                SlideDots().padding(.leading, 4)
                 Spacer(minLength: 0)
             }
             .padding(.leading, 4)
@@ -101,6 +102,7 @@ struct SettingsMenu: View {
     @Environment(FocusMusic.self) private var music
     @Environment(CalendarModel.self) private var calendar
     @Environment(NotchState.self) private var state
+    @Environment(Updater.self) private var updater
     @Environment(\.snapshotMode) private var snapshot
 
     var body: some View {
@@ -136,8 +138,23 @@ struct SettingsMenu: View {
                 }
                 Button("Add a Google or other account…") { CalendarModel.openAccountSettings() }
             }
+            Menu("Nest") {
+                Section("Show in your Nest (the second slide)") {
+                    ForEach(Widget.allCases) { w in
+                        Toggle(w.name, isOn: Binding(get: { settings.isOn(w) }, set: { on in
+                            settings.set(w, on: on)
+                            if settings.widgets.isEmpty { state.slide = .home }
+                        }))
+                    }
+                }
+                Divider()
+                Button("Edit quick links…") { settings.editQuickLinks() }
+                Text("Swipe sideways with two fingers to get there")
+            }
             Toggle("Open at login", isOn: $s.launchAtLogin)
             Divider()
+            Button(updater.menuTitle) { updater.run() }.disabled(updater.busy)
+            if let v = updater.current { Text("Version \(v)") }
             Button("Perch on GitHub") { NSWorkspace.shared.open(URL(string: "https://github.com/tanmayhc7/perch")!) }
             Button("Quit Perch") { NSApp.terminate(nil) }
         } label: {
@@ -295,6 +312,7 @@ struct ClaudeTile: View {
 struct MusicTile: View {
     @Environment(MediaHub.self) private var media
     @Environment(FocusMusic.self) private var music
+    @Environment(NotchState.self) private var state
     @Environment(\.snapshotMode) private var snapshot
 
     /// A page in the tile: a music app, or the focus music once one is chosen.
@@ -310,6 +328,11 @@ struct MusicTile: View {
         let selected = pages.first { $0.id == media.selectedID } ?? pages[0]
         Tile(padding: 0) {
             ZStack(alignment: .topTrailing) {
+                // Tells the slide swipe where this tile is, while it has pages of its own to swipe through.
+                GeometryReader { geo in
+                    let frame = pages.count > 1 ? geo.frame(in: .global) : .zero
+                    Color.clear.onAppear { state.musicFrame = frame }.onChange(of: frame) { _, f in state.musicFrame = f }
+                }
                 if snapshot || pages.count < 2 {
                     page(selected, paged: pages.count > 1)
                 } else {
@@ -709,7 +732,8 @@ struct PromptBar: View {
             }
         }
         .padding(.leading, 14).padding(.trailing, 7)
-        .background(Capsule().fill(.white.opacity(focused ? 0.1 : 0.06)))
+        // Glass, once the notch is in use: solid like the tiles.
+        .background(Capsule().fill(settings.theme == .glass && state.engaged ? AnyShapeStyle(Color(white: 0.09)) : AnyShapeStyle(.white.opacity(focused ? 0.1 : 0.06))))
         .overlay(Capsule().strokeBorder(focused ? AnyShapeStyle(theme.gradient.opacity(0.7)) : AnyShapeStyle(.white.opacity(0.1)), lineWidth: focused ? 1 : 0.75))
         .animation(.easeOut(duration: 0.2), value: focused)
         .onChange(of: focused) { _, f in
