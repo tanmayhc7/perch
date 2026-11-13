@@ -96,6 +96,13 @@ enum Snapshots {
             // A focus timer starts and its music takes over the music tile.
             ("focus-start", .ember, { env in focusMusic(env); env.media.selectedID = "spotify" }),
             ("focus-music", .ember, { env in focusMusic(env); env.media.selectedID = FocusMusic.pageID }),
+            // The second slide: today's calendar beside the quick links.
+            ("your-slide", .ember, { env in
+                env.state.mode = .expanded
+                env.state.slide = .board
+                env.settings.disabledWidgets = []
+                env.settings.quickLinks = QuickLink.starters
+            }),
         ]
         func focusMusic(_ env: AppEnvironment) {
             env.state.mode = .expanded
