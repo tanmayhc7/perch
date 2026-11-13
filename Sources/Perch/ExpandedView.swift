@@ -103,6 +103,7 @@ struct SettingsMenu: View {
     @Environment(CalendarModel.self) private var calendar
     @Environment(NotchState.self) private var state
     @Environment(Updater.self) private var updater
+    @Environment(WidgetHub.self) private var widgets
     @Environment(\.snapshotMode) private var snapshot
 
     var body: some View {
@@ -139,16 +140,21 @@ struct SettingsMenu: View {
                 Button("Add a Google or other account…") { CalendarModel.openAccountSettings() }
             }
             Menu("Nest") {
-                Section("Show in your Nest (the second slide)") {
+                Section("Show in your Nest") {
                     ForEach(Widget.allCases) { w in
                         Toggle(w.name, isOn: Binding(get: { settings.isOn(w) }, set: { on in
                             settings.set(w, on: on)
-                            if settings.widgets.isEmpty { state.slide = .home }
+                            // Slides come and go with the widgets: stay on one that still exists.
+                            if !settings.slides.contains(state.slide) { state.slide = .home }
+                            widgets.opened()
                         }))
                     }
                 }
                 Divider()
-                Button("Edit quick links…") { settings.editQuickLinks() }
+                if settings.isOn(.links) { Button("Edit quick links…") { settings.editQuickLinks() } }
+                if settings.isOn(.weather) { Button("Change weather city…") { widgets.weather.chooseCity() } }
+                if settings.isOn(.clipboard) { Button("Clear clipboard history") { widgets.clipboard.clear() } }
+                Text("Three to a slide; more make another slide")
                 Text("Swipe sideways with two fingers to get there")
             }
             Toggle("Open at login", isOn: $s.launchAtLogin)

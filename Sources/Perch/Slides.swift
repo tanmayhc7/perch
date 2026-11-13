@@ -1,25 +1,41 @@
 import AppKit
 import SwiftUI
 
-/// A full-width page of the open notch. Home is the fixed tile row; Board is the one the person
-/// builds from widgets (see `Widget`).
-enum Slide: String, CaseIterable, Identifiable {
-    case home, board
-    var id: String { rawValue }
-    var name: String { self == .home ? "Home" : "Nest" }
+/// A full-width page of the open notch. Home is the fixed tile row; the Nest slides hold the widgets the
+/// person switched on (see `Widget`), three to a slide: a new slide appears when they pick more.
+enum Slide: Hashable, Identifiable {
+    case home
+    case nest(Int)
+    var id: String { if case .nest(let i) = self { "nest\(i)" } else { "home" } }
+    var name: String {
+        switch self {
+        case .home: "Home"
+        case .nest(let i): i == 0 ? "Nest" : "Nest \(i + 1)"
+        }
+    }
 }
 
-/// A tile the person can put on the second slide. To add one: a case here, its name, and its view in
-/// `BoardSlide`. It then shows up in the menu and sits beside the others.
+/// A tile the person can put in the Nest. To add one: a case here with its name, and its view in `NestSlide`.
+/// It then shows up in the menu, and the Nest grows a slide when there are more than three.
+/// The order here is the order on the slides.
 enum Widget: String, CaseIterable, Identifiable {
-    case calendar, links
+    case calendar, links, clipboard, github, notes, system, weather, controls
     var id: String { rawValue }
     var name: String {
         switch self {
         case .calendar: "Today's calendar"
         case .links: "Quick links"
+        case .clipboard: "Clipboard history"
+        case .github: "GitHub"
+        case .notes: "Scratchpad"
+        case .system: "System glance"
+        case .weather: "Weather"
+        case .controls: "Volume & brightness"
         }
     }
+    /// A share of the slide's width, relative to the others on it.
+    var weight: CGFloat { self == .calendar ? 2 : 1 }
+    static let perSlide = 3
 }
 
 /// A shortcut on the Quick links tile.
@@ -47,15 +63,20 @@ struct QuickLink: Codable, Equatable, Identifiable {
 }
 
 extension AppSettings {
-    /// The widgets on the second slide, in their fixed order.
-    var widgets: [Widget] { Widget.allCases.filter { !disabledWidgets.contains($0.rawValue) } }
-    /// Home, then the second slide while it has at least one widget.
-    var slides: [Slide] { widgets.isEmpty ? [.home] : [.home, .board] }
+    /// The widgets that are on, in their fixed order.
+    var widgets: [Widget] { Widget.allCases.filter { enabledWidgets.contains($0.rawValue) } }
+    /// The widgets split into slides of three; the last may have fewer.
+    var pages: [[Widget]] {
+        let w = widgets
+        return stride(from: 0, to: w.count, by: Widget.perSlide).map { Array(w[$0..<min($0 + Widget.perSlide, w.count)]) }
+    }
+    /// Home, then one slide per page of widgets.
+    var slides: [Slide] { [.home] + pages.indices.map { .nest($0) } }
 
-    func isOn(_ w: Widget) -> Bool { !disabledWidgets.contains(w.rawValue) }
+    func isOn(_ w: Widget) -> Bool { enabledWidgets.contains(w.rawValue) }
 
     func set(_ w: Widget, on: Bool) {
-        if on { disabledWidgets.remove(w.rawValue) } else { disabledWidgets.insert(w.rawValue) }
+        if on { enabledWidgets.insert(w.rawValue) } else { enabledWidgets.remove(w.rawValue) }
     }
 
     /// A small form: a name and an address for each of the four slots. Empty rows are dropped.
@@ -116,7 +137,7 @@ struct SlideDeck: View {
                     Group {
                         switch s {
                         case .home: TilesRow()
-                        case .board: BoardSlide()
+                        case .nest(let i): NestSlide(widgets: i < settings.pages.count ? settings.pages[i] : [])
                         }
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
@@ -156,19 +177,32 @@ struct SlideDots: View {
     }
 }
 
-// MARK: - The second slide
+// MARK: - The Nest
 
-/// The widgets that are switched on, side by side. The calendar takes the room the others leave.
-struct BoardSlide: View {
-    @Environment(AppSettings.self) private var settings
+/// One slide of widgets, side by side, each as wide as its weight says (the calendar takes two shares).
+struct NestSlide: View {
+    var widgets: [Widget]
 
     var body: some View {
-        let widgets = settings.widgets
-        HStack(spacing: NotchLayout.gap) {
-            ForEach(widgets) { w in
-                switch w {
-                case .calendar: TodayTile(compact: widgets.count > 1)
-                case .links: LinksTile(wide: widgets.count == 1).frame(width: widgets.count == 1 ? nil : 214)
+        GeometryReader { geo in
+            let gaps = NotchLayout.gap * CGFloat(max(0, widgets.count - 1))
+            let total = widgets.reduce(0) { $0 + $1.weight }
+            HStack(spacing: NotchLayout.gap) {
+                ForEach(widgets) { w in
+                    let width = (geo.size.width - gaps) * w.weight / max(total, 1)
+                    Group {
+                        switch w {
+                        case .calendar: TodayTile(compact: width < 380)
+                        case .links: LinksTile(wide: widgets.count == 1, narrow: width < 190)
+                        case .clipboard: ClipboardTile()
+                        case .github: GitHubTile()
+                        case .notes: ScratchpadTile()
+                        case .system: SystemTile()
+                        case .weather: WeatherTile()
+                        case .controls: ControlsTile()
+                        }
+                    }
+                    .frame(width: width)
                 }
             }
         }
@@ -178,6 +212,7 @@ struct BoardSlide: View {
 /// Up to four shortcuts; a click opens the link in the default browser and closes the notch.
 struct LinksTile: View {
     var wide = false
+    var narrow = false
     @Environment(AppSettings.self) private var settings
     @Environment(NotchState.self) private var state
 
@@ -199,11 +234,11 @@ struct LinksTile: View {
                 } else if wide {
                     // Alone on the slide: two columns, so the rows don't stretch across the whole notch.
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())], spacing: 4) {
-                        ForEach(links) { LinkRow(link: $0, theme: settings.theme) { state.collapseAction() } }
+                        ForEach(links) { LinkRow(link: $0, theme: settings.theme, narrow: narrow) { state.collapseAction() } }
                     }
                     Spacer(minLength: 0)
                 } else {
-                    ForEach(links) { LinkRow(link: $0, theme: settings.theme) { state.collapseAction() } }
+                    ForEach(links) { LinkRow(link: $0, theme: settings.theme, narrow: narrow) { state.collapseAction() } }
                     Spacer(minLength: 0)
                 }
             }
@@ -214,6 +249,7 @@ struct LinksTile: View {
 private struct LinkRow: View {
     var link: QuickLink
     var theme: Theme
+    var narrow = false
     var opened: () -> Void
     private let _hover = State(initialValue: false)
 
@@ -229,7 +265,7 @@ private struct LinkRow: View {
                     .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(theme.gradient))
                 VStack(alignment: .leading, spacing: 0) {
                     Text(link.title).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.white.opacity(0.92)).lineLimit(1)
-                    Text(link.host).font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.42)).lineLimit(1)
+                    if !narrow { Text(link.host).font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.42)).lineLimit(1) }
                 }
                 Spacer(minLength: 2)
                 Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.white.opacity(hover ? 0.8 : 0.3))
@@ -296,8 +332,8 @@ struct TodayTile: View {
                 Text(summary(left: left, total: timed.count)).font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(.white.opacity(0.55)).fixedSize(horizontal: false, vertical: true)
             }
-            .frame(width: compact ? 92 : 124, alignment: .leading)
-            .padding(14)
+            .frame(width: compact ? 70 : 124, alignment: .leading)
+            .padding(compact ? 10 : 14)
 
             Rectangle().fill(.white.opacity(0.07)).frame(width: 1).padding(.vertical, 12)
 
@@ -329,7 +365,7 @@ struct TodayTile: View {
                     let current = timed.first { $0.end > now }?.id
                     let rows = VStack(alignment: .leading, spacing: 2) {
                         ForEach(snapshot ? timed.filter { $0.end > now.addingTimeInterval(-3 * 3600) } : timed) { e in
-                            EventRow(event: e, now: now, theme: settings.theme).id(e.id)
+                            EventRow(event: e, now: now, theme: settings.theme, compact: compact).id(e.id)
                         }
                     }
                     if snapshot {
@@ -344,7 +380,7 @@ struct TodayTile: View {
                     }
                 }
             }
-            .padding(.vertical, 10).padding(.horizontal, 12)
+            .padding(.vertical, 10).padding(.horizontal, compact ? 8 : 12)
         }
     }
 
@@ -373,6 +409,8 @@ private struct EventRow: View {
     var event: CalendarModel.DayEvent
     var now: Date
     var theme: Theme
+    /// A narrow tile: no length, a dot for "now", a small video button for Join.
+    var compact = false
 
     var body: some View {
         let over = event.end <= now
@@ -380,19 +418,26 @@ private struct EventRow: View {
         HStack(spacing: 8) {
             Text(event.start.formatted(.dateTime.hour().minute()))
                 .font(.system(size: 10.5, weight: .medium).monospacedDigit())
-                .foregroundStyle(.white.opacity(live ? 0.9 : 0.5)).frame(width: 52, alignment: .leading)
+                .foregroundStyle(.white.opacity(live ? 0.9 : 0.5)).frame(width: compact ? 54 : 52, alignment: .leading)
             Capsule().fill(Color(nsColor: event.color)).frame(width: 3, height: 16)
             Text(event.title).font(.system(size: 11.5, weight: live ? .semibold : .medium)).lineLimit(1)
                 .foregroundStyle(.white.opacity(over ? 0.4 : 0.92))
             Spacer(minLength: 4)
             if live {
-                Text("Now").font(.system(size: 9.5, weight: .bold)).foregroundStyle(.black)
-                    .padding(.horizontal, 6).frame(height: 15).background(Capsule().fill(theme.gradient))
-            } else if !over {
+                if compact { Circle().fill(theme.gradient).frame(width: 7, height: 7).help("On now") }
+                else {
+                    Text("Now").font(.system(size: 9.5, weight: .bold)).foregroundStyle(.black)
+                        .padding(.horizontal, 6).frame(height: 15).background(Capsule().fill(theme.gradient))
+                }
+            } else if !over && !compact {
                 Text(Self.duration(event)).font(.system(size: 10)).foregroundStyle(.white.opacity(0.38))
             }
             if let url = event.joinURL, !over {
-                Button("Join") { NSWorkspace.shared.open(url) }.buttonStyle(PillButtonStyle(theme: theme, prominent: live))
+                if compact {
+                    IconButton(symbol: "video.fill", size: 22, filled: live, theme: theme, help: "Join") { NSWorkspace.shared.open(url) }
+                } else {
+                    Button("Join") { NSWorkspace.shared.open(url) }.buttonStyle(PillButtonStyle(theme: theme, prominent: live))
+                }
             }
         }
         .padding(.horizontal, 6)

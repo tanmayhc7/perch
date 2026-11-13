@@ -96,11 +96,19 @@ final class NotchController {
                 case _ where cmd.hasPrefix("slide:"):
                     if cmd == "slide:next" { self.env.state.step(1, in: self.env.settings.slides) }
                     else if cmd == "slide:prev" { self.env.state.step(-1, in: self.env.settings.slides) }
-                    else if let s = Slide(rawValue: String(cmd.dropFirst(6))) { self.env.state.slide = s }
+                    else if cmd == "slide:home" { self.env.state.slide = .home }
+                    else if let i = Int(cmd.dropFirst(6)), i >= 1 { self.env.state.slide = .nest(i - 1) }
                 case _ where cmd.hasPrefix("widget:"):
                     // widget:links:off, widget:calendar:on
                     let parts = cmd.split(separator: ":")
                     if parts.count == 3, let w = Widget(rawValue: String(parts[1])) { self.env.settings.set(w, on: parts[2] == "on") }
+                case _ where cmd.hasPrefix("weathercity:"): self.env.widgets.weather.use(city: String(cmd.dropFirst(12)))
+                case "widgets":
+                    let w = self.env.widgets
+                    let line = "clipboard=\(w.clipboard.items.count) github=\(w.github.state)/review=\(w.github.reviewCount)/mine=\(w.github.mine.count)/ci=\(w.github.mine.map { String(describing: $0.ci) }) system=batt:\(w.system.batteryPercent.map(String.init) ?? "-")/cpu:\(Int(w.system.cpu * 100))/mem:\(Int(w.system.memory * 100))/p\(w.system.pressure)/disk:\(Int(w.system.diskFreeGB ?? -1))/bt:\(w.system.devices.map { "\($0.name):\($0.percent)" }) weather=\(w.weather.state)/\(w.weather.place?.name ?? "-")/\(w.weather.now.map { "\(Int($0.temperature))°code\($0.code)" } ?? "-") controls=vol:\(w.controls.volume.map { String(format: "%.2f", $0) } ?? "-")/mute:\(w.controls.muted)/bri:\(w.controls.brightness.map { String(format: "%.2f", $0) } ?? "-") slides=\(self.env.settings.slides.map(\.name)) page=\(self.env.state.slide.name)\n"
+                    if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
+                        h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+                    }
                 case "key": self.focusPrompt()
                 case "engage": self.env.state.engaged.toggle()
                 case "update": self.env.updater.run()
@@ -280,6 +288,7 @@ final class NotchController {
         env.shelf.pruneMissing()
         for p in env.media.players where p.running { p.refresh() }
         env.claude.refresh()
+        env.widgets.opened()
         // EventKit queries can take a while; run them after the first frame is on screen.
         DispatchQueue.main.async { [env] in env.calendar.reload() }
         let t2 = CFAbsoluteTimeGetCurrent()
@@ -297,6 +306,7 @@ final class NotchController {
     /// Not after a click somewhere else: that click already chose where focus goes.
     func collapse(restoreFocus: Bool) {
         env.state.mode = .collapsed
+        env.widgets.closed()
         env.state.engaged = false
         env.state.pinned = false
         env.state.dropMode = false

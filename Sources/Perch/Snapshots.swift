@@ -50,10 +50,23 @@ enum Snapshots {
         }
         shot(dir, "nest", theme: .ember) { env in
             env.state.mode = .expanded
-            env.state.slide = .board
-            env.settings.disabledWidgets = []
+            env.state.slide = .nest(0)
+            env.settings.enabledWidgets = [Widget.calendar.rawValue, Widget.links.rawValue]
             env.settings.quickLinks = QuickLink.starters
         }
+        func nestShot(_ name: String, _ on: [Widget], slide: Int) {
+            shot(dir, name, theme: .ember) { env in
+                env.state.mode = .expanded
+                env.settings.enabledWidgets = Set(Widget.allCases.map(\.rawValue))
+                env.settings.scratchpad = "• reply to Mira about the roadmap\n• book the 4pm room\n• ship 0.4.1"
+                env.widgets.clipboard.loadSample(); env.widgets.github.loadSample(); env.widgets.system.loadSample()
+                env.widgets.weather.loadSample(); env.widgets.controls.loadSample()
+                env.state.slide = .nest(slide)
+            }
+        }
+        nestShot("nest-1", [], slide: 0)
+        nestShot("nest-2", [], slide: 1)
+        nestShot("nest-3", [], slide: 2)
         for wp in SampleWallpaper.all {
             let img = wp.image()
             AutoPalette.shared.set(from: img)
@@ -99,8 +112,8 @@ enum Snapshots {
             // The second slide: today's calendar beside the quick links.
             ("nest", .ember, { env in
                 env.state.mode = .expanded
-                env.state.slide = .board
-                env.settings.disabledWidgets = []
+                env.state.slide = .nest(0)
+                env.settings.enabledWidgets = [Widget.calendar.rawValue, Widget.links.rawValue]
                 env.settings.quickLinks = QuickLink.starters
             }),
         ]
@@ -148,7 +161,7 @@ enum Snapshots {
         let state = NotchState(geometry: NotchGeometry(width: 185, height: 32, hasNotch: true, midX: 0, top: 0))
         let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)], persist: false),
                                  shelf: ShelfModel(), calendar: CalendarModel(defaults: UserDefaults(suiteName: "perch.snapshots")!), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(defaults: UserDefaults(suiteName: "perch.snapshots")!),
-                                 music: FocusMusic(defaults: UserDefaults(suiteName: "perch.snapshots")!), updater: Updater())
+                                 music: FocusMusic(defaults: UserDefaults(suiteName: "perch.snapshots")!), updater: Updater(), widgets: WidgetHub(defaults: UserDefaults(suiteName: "perch.snapshots")!))
         let now = Date()
         func req(_ minsAgo: Double, _ counted: Double) -> LedgerRequest {
             LedgerRequest(ts: now.addingTimeInterval(-minsAgo * 60), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, usd: counted / 220_000, counted: counted)
