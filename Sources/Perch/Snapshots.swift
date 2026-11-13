@@ -19,6 +19,9 @@ enum Snapshots {
             env.state.toast = Toast(symbol: "gauge.with.dots.needle.67percent", tint: .warning, title: "80% of your Claude budget used",
                                     subtitle: "4M in 5h · 1M left")
         }
+        shot(dir, "toast-update", theme: .ember, height: 130) { env in
+            env.state.toast = Toast(symbol: "arrow.down.circle.fill", title: "Perch 0.5.0 is available", subtitle: "You have 0.4.0", actionTitle: "Update", action: {})
+        }
         shot(dir, "drag-hint", theme: .ember, height: 130) { env in env.state.dragHint = true }
         shot(dir, "drop", theme: .ember) { env in
             env.state.mode = .expanded
@@ -106,6 +109,15 @@ enum Snapshots {
                 env.shelf.add([URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"),
                                URL(fileURLWithPath: "/Library/Desktop Pictures"), URL(fileURLWithPath: "/etc/hosts")])
             }),
+            // The Nest, one slide at a time, with every widget on.
+            ("nest-1", .ember, { env in nestSlide(env, 0) }),
+            ("nest-2", .ember, { env in nestSlide(env, 1) }),
+            ("nest-3", .ember, { env in nestSlide(env, 2) }),
+            ("toast-update", .ember, { env in
+                env.calendar.next = nil
+                env.state.toast = Toast(symbol: "arrow.down.circle.fill", title: "Perch 0.5.0 is available", subtitle: "You have 0.4.0",
+                                        actionTitle: "Update", action: {})
+            }),
             // A focus timer starts and its music takes over the music tile.
             ("focus-start", .ember, { env in focusMusic(env); env.media.selectedID = "spotify" }),
             ("focus-music", .ember, { env in focusMusic(env); env.media.selectedID = FocusMusic.pageID }),
@@ -117,6 +129,14 @@ enum Snapshots {
                 env.settings.quickLinks = QuickLink.starters
             }),
         ]
+        func nestSlide(_ env: AppEnvironment, _ i: Int) {
+            env.state.mode = .expanded
+            env.settings.enabledWidgets = Set(Widget.allCases.map(\.rawValue))
+            env.settings.scratchpad = "• reply to Mira about the roadmap\n• book the 4pm room\n• ship 0.5.1"
+            env.widgets.clipboard.loadSample(); env.widgets.github.loadSample(); env.widgets.system.loadSample()
+            env.widgets.weather.loadSample(); env.widgets.controls.loadSample()
+            env.state.slide = .nest(i)
+        }
         func focusMusic(_ env: AppEnvironment) {
             env.state.mode = .expanded
             env.timer.start(minutes: 25, label: "Focus")
