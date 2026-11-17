@@ -135,6 +135,7 @@ struct SettingsMenu: View {
                         }
                     }
                     Divider()
+                    Button(calendar.syncing ? "Reloading…" : "Reload calendars") { calendar.sync(force: true) }.disabled(calendar.syncing)
                     if calendar.hiddenCount > 0 { Button("Show all calendars") { calendar.showAll() } }
                 }
                 Button("Add a Google or other account…") { CalendarModel.openAccountSettings() }

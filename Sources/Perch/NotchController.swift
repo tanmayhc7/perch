@@ -19,6 +19,9 @@ final class NotchController {
     private var dragTimer: Timer?
     private var dragChangeCount = 0
     private var collapseWork: DispatchWorkItem?
+    /// A menu from the notch (the ⋯ settings, the model chip, a tile's menu) is open. Its items hang outside
+    /// the notch's rectangle, so the pointer over them must not count as having left the notch.
+    private var menuOpen = false
     private var swipe = CGPoint.zero
     private var swipeFired = false
     private var swipeIgnored = false
@@ -70,6 +73,21 @@ final class NotchController {
         for (name, key) in [(NSWindow.didBecomeKeyNotification, true), (NSWindow.didResignKeyNotification, false)] {
             NotificationCenter.default.addObserver(forName: name, object: p, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.env.state.hasKeyboard = key; if key { self?.env.state.engaged = true } }
+            }
+        }
+        // Menus are tracked by AppKit, which tells us when one opens and closes (submenus too).
+        NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.menuOpen = true
+                self?.collapseWork?.cancel(); self?.collapseWork = nil
+            }
+        }
+        NotificationCenter.default.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.menuOpen = false
+                // The pointer may be well outside the notch by now: close it as usual, after a short grace.
+                self.mouseMoved()
             }
         }
         installMonitors()
@@ -124,7 +142,7 @@ final class NotchController {
                 case "musicstop": self.env.music.stopForSession()
                 case "calendars":
                     let c = self.env.calendar
-                    let line = "access=\(c.access.rawValue) hidden=\(c.hiddenCount) next=\(c.next?.title ?? "-") groups=\(c.groups.map { "\($0.title)[\($0.calendars.map { ($0.title) + (c.isShown($0.id) ? "+" : "-") }.joined(separator: ","))]" })\n"
+                    let line = "access=\(c.access.rawValue) syncing=\(c.syncing) today=\(c.today.count) hidden=\(c.hiddenCount) next=\(c.next?.title ?? "-") groups=\(c.groups.map { "\($0.title)[\($0.calendars.map { ($0.title) + (c.isShown($0.id) ? "+" : "-") }.joined(separator: ","))]" })\n"
                     // NSLog redacts dynamic strings in the unified log, so debug output goes to a file when asked.
                     if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
                         h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
@@ -136,6 +154,55 @@ final class NotchController {
                     let title = String(cmd.dropFirst(8))
                     for g in self.env.calendar.groups { for cal in g.calendars where cal.title == title { self.env.calendar.setShown(cal.id, true) } }
                 case "calall": self.env.calendar.showAll()
+                case "menutest", "nomenutest":
+                    // Development: opens the notch unpinned with the pointer wherever it is, optionally opens a menu
+                    // as the ⋯ menu would, nudges the hover logic, and reports whether the notch stayed open.
+                    let withMenu = cmd == "menutest"
+                    let out = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"]
+                    func report(_ text: String) {
+                        guard let path = out, let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() else { return }
+                        h.seekToEndOfFile(); h.write(Data((text + "\n").utf8)); try? h.close()
+                    }
+                    self.env.state.pinned = false
+                    self.collapse()
+                    // Park the pointer low on the screen (as if it had left the notch), and put it back afterwards.
+                    let home = NSEvent.mouseLocation
+                    if let scr = self.screen {
+                        CGWarpMouseCursorPosition(CGPoint(x: scr.frame.midX + 300, y: scr.frame.height - 80))
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
+                            CGWarpMouseCursorPosition(CGPoint(x: home.x, y: (self.screen?.frame.height ?? 0) - home.y))
+                        }
+                    }
+                    self.expand()
+                    let menu = NSMenu()
+                    menu.addItem(NSMenuItem(title: "Test item", action: nil, keyEquivalent: ""))
+                    for (delay, label) in [(0.3, "t+0.3"), (1.0, "t+1.0")] {
+                        let t = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+                            MainActor.assumeIsolated {
+                                guard let self else { return }
+                                self.mouseMoved()
+                                report("\(cmd) \(label): menuOpen=\(self.menuOpen) expanded=\(self.env.state.isExpanded) pointer=\(NSEvent.mouseLocation)")
+                            }
+                        }
+                        RunLoop.main.add(t, forMode: .common)
+                    }
+                    let end = Timer(timeInterval: 1.6, repeats: false) { _ in menu.cancelTracking() }
+                    RunLoop.main.add(end, forMode: .common)
+                    let done = Timer(timeInterval: 2.4, repeats: false) { [weak self] _ in
+                        MainActor.assumeIsolated {
+                            guard let self else { return }
+                            report("\(cmd) after: menuOpen=\(self.menuOpen) expanded=\(self.env.state.isExpanded)")
+                        }
+                    }
+                    RunLoop.main.add(done, forMode: .common)
+                    if withMenu {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            let g = self.env.state.geometry
+                            menu.popUp(positioning: nil, at: NSPoint(x: g.midX, y: g.top - 400), in: nil)
+                        }
+                    }
+                case "menustate": NSLog("Perch menu: open=\(self.menuOpen) expanded=\(self.env.state.isExpanded)")
+                case "calsync": self.env.calendar.sync(force: true)
                 case "claudemodel":
                     let st = self.env.claude.stats
                     let line = "model=\(st.model ?? "-") shown=\(st.model.map(Transcript.displayName) ?? "-") sessions=\(st.sessions.map { "\($0.project):\($0.state)" })\n"
@@ -261,7 +328,7 @@ final class NotchController {
         panel.ignoresMouseEvents = !inside && !st.dropMode
 
         if st.isExpanded {
-            if inside || st.pinned || st.dropMode {
+            if inside || st.pinned || st.dropMode || menuOpen {
                 collapseWork?.cancel(); collapseWork = nil
             } else if collapseWork == nil {
                 let w = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.collapseIfOutside() } }
@@ -278,7 +345,7 @@ final class NotchController {
     private func collapseIfOutside() {
         collapseWork = nil
         let st = env.state
-        guard st.isExpanded, !st.pinned, !st.dropMode else { return }
+        guard st.isExpanded, !st.pinned, !st.dropMode, !menuOpen else { return }
         if !activeRect(slack: 14).contains(NSEvent.mouseLocation) { collapse() }
     }
 
@@ -298,7 +365,7 @@ final class NotchController {
         env.widgets.opened()
         env.updater.checkQuietly()
         // EventKit queries can take a while; run them after the first frame is on screen.
-        DispatchQueue.main.async { [env] in env.calendar.reload() }
+        DispatchQueue.main.async { [env] in env.calendar.sync() }
         let t2 = CFAbsoluteTimeGetCurrent()
         if debug {
             panel.contentView?.layoutSubtreeIfNeeded()
@@ -336,7 +403,8 @@ final class NotchController {
     }
 
     private func clickOutside() {
-        guard env.state.isExpanded else { return }
+        // A click on a menu item is outside the notch too, but it belongs to the menu.
+        guard env.state.isExpanded, !menuOpen else { return }
         if !activeRect(slack: 14).contains(NSEvent.mouseLocation) {
             env.state.pinned = false
             collapse(restoreFocus: false)

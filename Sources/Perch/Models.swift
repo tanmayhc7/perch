@@ -145,6 +145,9 @@ final class CalendarModel {
     private(set) var hidden: Set<String>
     private let defaults: UserDefaults
 
+    /// A Reload asked for in the menu or on the tile is under way.
+    private(set) var syncing = false
+    @ObservationIgnored private var lastSync: Date?
     @ObservationIgnored var onAlert: ((Toast) -> Void)?
     @ObservationIgnored private let store = EKEventStore()
     @ObservationIgnored private var timer: Timer?
@@ -204,6 +207,26 @@ final class CalendarModel {
         NSApp.activate(ignoringOtherApps: true)
         store.requestFullAccessToEvents { _, _ in
             DispatchQueue.main.async { MainActor.assumeIsolated { self.access = EKEventStore.authorizationStatus(for: .event); self.reload() } }
+        }
+    }
+
+    /// Asks macOS to fetch the accounts' calendars again (Google, iCloud, Exchange…), then reads them.
+    /// Perch only sees what macOS has synced: an event added on the web or a phone shows up after that sync,
+    /// which macOS otherwise does on its own schedule. `force` is the menu's Reload; opening the notch asks
+    /// at most once a minute.
+    func sync(force: Bool = false) {
+        guard hasAccess else { reload(); return }
+        if !force, let last = lastSync, Date().timeIntervalSince(last) < 60 { reload(); return }
+        lastSync = Date()
+        if force { syncing = true }
+        store.refreshSourcesIfNecessary()
+        reload()
+        // The fetch runs in the background and macOS announces what changed (see `start`); read again a
+        // little later too, in case nothing is announced.
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            reload()
+            syncing = false
         }
     }
 
