@@ -124,7 +124,7 @@ final class NotchController {
                 case "musicstop": self.env.music.stopForSession()
                 case "calendars":
                     let c = self.env.calendar
-                    let line = "access=\(c.access.rawValue) hidden=\(c.hiddenCount) next=\(c.next?.title ?? "-") groups=\(c.groups.map { "\($0.title)[\($0.calendars.map { ($0.title) + (c.isShown($0.id) ? "+" : "-") }.joined(separator: ","))]" })\n"
+                    let line = "access=\(c.access.rawValue) syncing=\(c.syncing) today=\(c.today.count) hidden=\(c.hiddenCount) next=\(c.next?.title ?? "-") groups=\(c.groups.map { "\($0.title)[\($0.calendars.map { ($0.title) + (c.isShown($0.id) ? "+" : "-") }.joined(separator: ","))]" })\n"
                     // NSLog redacts dynamic strings in the unified log, so debug output goes to a file when asked.
                     if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
                         h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
@@ -136,6 +136,7 @@ final class NotchController {
                     let title = String(cmd.dropFirst(8))
                     for g in self.env.calendar.groups { for cal in g.calendars where cal.title == title { self.env.calendar.setShown(cal.id, true) } }
                 case "calall": self.env.calendar.showAll()
+                case "calsync": self.env.calendar.sync(force: true)
                 case "claudemodel":
                     let st = self.env.claude.stats
                     let line = "model=\(st.model ?? "-") shown=\(st.model.map(Transcript.displayName) ?? "-") sessions=\(st.sessions.map { "\($0.project):\($0.state)" })\n"
@@ -298,7 +299,7 @@ final class NotchController {
         env.widgets.opened()
         env.updater.checkQuietly()
         // EventKit queries can take a while; run them after the first frame is on screen.
-        DispatchQueue.main.async { [env] in env.calendar.reload() }
+        DispatchQueue.main.async { [env] in env.calendar.sync() }
         let t2 = CFAbsoluteTimeGetCurrent()
         if debug {
             panel.contentView?.layoutSubtreeIfNeeded()

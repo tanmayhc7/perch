@@ -329,8 +329,16 @@ struct TodayTile: View {
             VStack(alignment: .leading, spacing: 8) {
                 DateBadge(date: now)
                 Spacer(minLength: 0)
-                Text(summary(left: left, total: timed.count)).font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.55)).fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 2) {
+                    Text(compact && left > 0 && left < timed.count ? "\(left) left" : summary(left: left, total: timed.count)).font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.55)).lineLimit(1)
+                    Spacer(minLength: 0)
+                    IconButton(symbol: "arrow.clockwise", size: 18, help: "Reload calendars: fetch new events from your accounts") {
+                        calendar.sync(force: true)
+                    }
+                    .opacity(calendar.syncing ? 0.35 : 1)
+                    .disabled(calendar.syncing)
+                }
             }
             .frame(width: compact ? 70 : 124, alignment: .leading)
             .padding(compact ? 10 : 14)
