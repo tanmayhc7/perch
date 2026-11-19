@@ -51,12 +51,6 @@ enum Snapshots {
                               artwork: sampleArtwork(colors: [NSColor(red: 0.85, green: 0.45, blue: 0.25, alpha: 1), NSColor(red: 0.30, green: 0.12, blue: 0.35, alpha: 1)]))
             env.media.selectedID = FocusMusic.pageID
         }
-        shot(dir, "nest", theme: .ember) { env in
-            env.state.mode = .expanded
-            env.state.slide = .nest(0)
-            env.settings.enabledWidgets = [Widget.calendar.rawValue, Widget.links.rawValue]
-            env.settings.quickLinks = QuickLink.starters
-        }
         func nestShot(_ name: String, _ on: [Widget], slide: Int) {
             shot(dir, name, theme: .ember) { env in
                 env.state.mode = .expanded
