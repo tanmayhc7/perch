@@ -1,6 +1,7 @@
 #!/bin/bash
 # Builds dist/Perch.app (and a zip for GitHub Releases) with only the
-# Command Line Tools: no Xcode needed. The app is ad-hoc signed, not notarized.
+# Command Line Tools: no Xcode needed. The app is signed with the "Perch Release Signing" certificate when it's in
+# the keychain (otherwise ad hoc), and is not notarized.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -41,7 +42,21 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/*.shortcut "$APP/Contents/Resources/"
 
 xattr -cr "$APP"
-codesign --force --deep --sign - "$APP"
+# Signing identity. macOS ties permissions (Calendar, Automation…) to the app's signature. Ad-hoc ("-") gives every
+# build its own signature, so each update or reinstall asks for them again. A named certificate gives every build the
+# same identity, so permissions carry over. Release builds use the "Perch Release Signing" certificate (see
+# docs/HOW-IT-WORKS.md, "Signing"); override with PERCH_SIGN_IDENTITY, or without it the build falls back to ad-hoc.
+IDENTITY="${PERCH_SIGN_IDENTITY:-}"
+if [ -z "$IDENTITY" ]; then
+  IDENTITY="$(security find-identity -p codesigning 2>/dev/null | awk '/"Perch Release Signing"/ {print $2; exit}')"
+fi
+if [ -n "$IDENTITY" ]; then
+  echo "→ Signing with identity $IDENTITY"
+  codesign --force --deep --sign "$IDENTITY" "$APP"
+else
+  echo "→ Signing ad hoc (no \"Perch Release Signing\" certificate found: permissions will be asked for again after each build)"
+  codesign --force --deep --sign - "$APP"
+fi
 lipo -info "$APP/Contents/MacOS/Perch"
 
 codesign --verify "$APP"
