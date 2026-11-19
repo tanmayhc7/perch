@@ -121,6 +121,8 @@ do {
     check(decode(#"{"tokens":"lots","windowHours":1e300}"#), LedgerBudget(), "wrong types and absurd windows ignored")
     check(decode(#"{"usd":5,"windowHours":0.5}"#)?.windowText, "30m", "half-hour window")
     check(LedgerBudget(windowHours: 1.5).windowText, "1.5h", "fractional window")
+    check(LedgerBudget(windowHours: 168).windowText, "7d", "a week")
+    check(LedgerBudget(windowHours: 24).windowText, "24h", "a day stays in hours")
     let huge = LedgerRequest(ts: now.addingTimeInterval(-60), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, usd: 0, counted: 300_000)
     let st = ClaudeStats.compute(sessions: [LedgerSession(id: "a", cwd: "/a", updatedAt: now, streaming: 0, reqs: [huge])],
                                  budget: LedgerBudget(tokens: 1e30), now: now)
@@ -135,6 +137,75 @@ do {
     check(TokenFormat.short(.nan), "—", "nan")
     check(TokenFormat.short(-12_400), "-12.4k", "negative")
     check(TokenFormat.short(5e18), "5000000T", "huge")
+}
+
+// testClearsAndRestoresBudget
+do {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ledger-check-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let file = dir.appendingPathComponent("budget.json")
+    func text() -> String { (try? String(contentsOf: file, encoding: .utf8)) ?? "" }
+
+    check(Ledger.clearBudget(in: dir) == nil, true, "no file: nothing to clear")
+    try? #"{"tokens":5000000,"usd":20,"windowHours":24,"note":"keep"}"#.write(to: file, atomically: true, encoding: .utf8)
+    let was = Ledger.clearBudget(in: dir)
+    check(was, LedgerBudget(tokens: 5_000_000, usd: 20, windowHours: 24), "clear returns what was there")
+    let after = Ledger.readBudget(in: dir)
+    check(after?.tokens == nil && after?.usd == nil, true, "limits are gone")
+    check(after?.windowHours, 24, "window kept")
+    check(text().contains("\"note\""), true, "other keys kept")
+    check(Ledger.clearBudget(in: dir) == nil, true, "already cleared: nothing to clear")
+
+    check(Ledger.restoreBudget(was!, in: dir), true, "restore succeeds")
+    check(Ledger.readBudget(in: dir), LedgerBudget(tokens: 5_000_000, usd: 20, windowHours: 24), "restored as it was")
+    check(text().contains("\"note\""), true, "other keys survive a restore")
+
+    // A budget set after clearing is not overwritten by an old undo.
+    _ = Ledger.clearBudget(in: dir)
+    try? #"{"tokens":1000,"windowHours":5}"#.write(to: file, atomically: true, encoding: .utf8)
+    check(Ledger.restoreBudget(was!, in: dir), false, "restore refuses to overwrite a newer budget")
+    check(Ledger.readBudget(in: dir)?.tokens, 1000, "newer budget untouched")
+
+    // A window-only file (as `/token-budget all off` leaves it) has nothing to clear.
+    try? #"{"windowHours":5}"#.write(to: file, atomically: true, encoding: .utf8)
+    check(Ledger.clearBudget(in: dir) == nil, true, "window-only file: nothing to clear")
+    // A file that isn't JSON is left alone.
+    try? "not json".write(to: file, atomically: true, encoding: .utf8)
+    check(Ledger.clearBudget(in: dir) == nil && text() == "not json", true, "garbage file untouched")
+}
+
+// testSetsBudget
+do {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ledger-set-\(UUID().uuidString)/token-meter")
+    defer { try? FileManager.default.removeItem(at: dir.deletingLastPathComponent()) }
+    check(Ledger.readBudget(in: dir) == nil, true, "no folder yet")
+    check(Ledger.updateBudget(tokens: .set(5_000_000), in: dir), true, "sets a token budget, creating the folder")
+    check(Ledger.readBudget(in: dir), LedgerBudget(tokens: 5_000_000), "token budget written, default window")
+    check(Ledger.updateBudget(usd: .set(20), windowHours: 24, in: dir), true, "adds dollars and a window")
+    check(Ledger.readBudget(in: dir), LedgerBudget(tokens: 5_000_000, usd: 20, windowHours: 24), "both limits together")
+    check(Ledger.updateBudget(tokens: .remove, in: dir), true, "removes one limit")
+    check(Ledger.readBudget(in: dir), LedgerBudget(usd: 20, windowHours: 24), "the other stays")
+    check(Ledger.updateBudget(tokens: .set(-1), in: dir), false, "a negative limit is refused")
+    check(Ledger.updateBudget(tokens: .set(.infinity), in: dir), false, "an infinite limit is refused")
+    check(Ledger.updateBudget(windowHours: 0, in: dir), false, "a zero window is refused")
+    check(Ledger.updateBudget(windowHours: 24 * 40, in: dir), false, "a window over 31 days is refused")
+    check(Ledger.readBudget(in: dir), LedgerBudget(usd: 20, windowHours: 24), "refused changes leave the file alone")
+
+    check(Ledger.parseAmount("500k"), 500_000, "500k")
+    check(Ledger.parseAmount("1.5M"), 1_500_000, "1.5M")
+    check(Ledger.parseAmount("12,000"), 12_000, "12,000")
+    check(Ledger.parseAmount("$5"), 5, "$5")
+    check(Ledger.parseAmount("5 m"), 5_000_000, "5 m")
+    check(Ledger.parseAmount("lots") == nil, true, "words aren't amounts")
+    check(Ledger.parseAmount("0") == nil, true, "zero isn't an amount")
+    check(Ledger.parseAmount("-5") == nil, true, "negative isn't an amount")
+    check(Ledger.parseAmount("") == nil, true, "empty isn't an amount")
+    check(Ledger.parseWindowHours("5h"), 5, "5h")
+    check(Ledger.parseWindowHours("7d"), 168, "7d")
+    check(Ledger.parseWindowHours("1.5h"), 1.5, "1.5h")
+    check(Ledger.parseWindowHours("99d") == nil, true, "99d is out of range")
+    check(Ledger.parseWindowHours("soon") == nil, true, "soon isn't a window")
 }
 
 print(failures == 0 ? "✓ LedgerKit checks passed" : "\(failures) check(s) failed")

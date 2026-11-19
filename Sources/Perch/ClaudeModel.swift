@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import LedgerKit
 
@@ -40,6 +41,113 @@ final class ClaudeModel {
 
     /// A read is under way; skip ticks until it finishes so slow disks can't pile reads up.
     @ObservationIgnored private var reading = false
+
+    /// Asks first, since the budget is shared by every Claude Code session, then clears it (see `Ledger.clearBudget`).
+    func confirmClearBudget() {
+        guard stats.budget?.tokens != nil || stats.budget?.usd != nil else { return }
+        let alert = NSAlert()
+        alert.messageText = "Clear your Claude Code token budget?"
+        let what = [stats.budget?.tokens.map { "\(TokenFormat.short($0)) tokens" }, stats.budget?.usd.map { String(format: "$%.2f", $0) }]
+            .compactMap { $0 }.joined(separator: " and ")
+        alert.informativeText = "This removes the all-sessions budget (\(what) over \(stats.budget?.windowText ?? "5h")) for every Claude Code session, "
+            + "the same as /token-budget all off. Set a new one any time with /token-budget all 5M; Undo in the next notice puts it back."
+        alert.addButton(withTitle: "Clear budget")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        clearBudget()
+    }
+
+    enum BudgetField { case tokens, dollars, window }
+
+    /// Changes the shared budget (see `Ledger.updateBudget`); Claude Code sessions read it on their next update.
+    func setBudget(tokens: BudgetLimit = .keep, usd: BudgetLimit = .keep, windowHours: Double? = nil) {
+        let dir = self.dir
+        queue.async {
+            let ok = Ledger.updateBudget(tokens: tokens, usd: usd, windowHours: windowHours, in: dir)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if ok {
+                        // A new limit can be warned about afresh.
+                        self.firedBudget = []
+                        self.refresh()
+                    } else {
+                        self.onAlert?(Toast(symbol: "exclamationmark.triangle.fill", tint: .warning, title: "Couldn't change the budget",
+                                            subtitle: "token-meter's budget file wasn't changed"))
+                    }
+                }
+            }
+        }
+    }
+
+    /// A value of your own for one budget option, typed the way token-meter takes it (`3M`, `$15`, `12h`).
+    func promptBudget(_ field: BudgetField) {
+        let alert = NSAlert()
+        let hint: String
+        switch field {
+        case .tokens: alert.messageText = "Token budget"; hint = "e.g. 3M or 750k"
+        case .dollars: alert.messageText = "Dollar budget"; hint = "e.g. 15 or $15"
+        case .window: alert.messageText = "Budget window"; hint = "e.g. 12h, 3d (from 1 minute to 31 days)"
+        }
+        alert.informativeText = "For every Claude Code session together. Same as /token-budget all in Claude Code."
+        let box = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        box.placeholderString = hint
+        alert.accessoryView = box
+        alert.addButton(withTitle: "Set")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.window.initialFirstResponder = box
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let text = box.stringValue
+        switch field {
+        case .tokens:
+            if let v = Ledger.parseAmount(text) { setBudget(tokens: .set(v)) } else { invalid(text, hint) }
+        case .dollars:
+            if let v = Ledger.parseAmount(text) { setBudget(usd: .set(v)) } else { invalid(text, hint) }
+        case .window:
+            if let v = Ledger.parseWindowHours(text) { setBudget(windowHours: v) } else { invalid(text, hint) }
+        }
+    }
+
+    private func invalid(_ text: String, _ hint: String) {
+        onAlert?(Toast(symbol: "questionmark.circle.fill", tint: .warning, title: "Couldn't read “\(text.prefix(20))”", subtitle: "Try \(hint)"))
+    }
+
+    func clearBudget() {
+        let dir = self.dir
+        queue.async {
+            let previous = Ledger.clearBudget(in: dir)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let previous else {
+                        self.onAlert?(Toast(symbol: "exclamationmark.triangle.fill", tint: .warning, title: "Couldn't clear the budget",
+                                            subtitle: "token-meter's budget file wasn't changed"))
+                        return
+                    }
+                    self.firedBudget = []
+                    self.refresh()
+                    self.onAlert?(Toast(symbol: "checkmark.circle.fill", tint: .calm, title: "Token budget cleared",
+                                        subtitle: "For every Claude Code session",
+                                        actionTitle: "Undo", action: { [weak self] in self?.restoreBudget(previous) }, seconds: 10))
+                }
+            }
+        }
+    }
+
+    private func restoreBudget(_ previous: LedgerBudget) {
+        let dir = self.dir
+        queue.async {
+            let ok = Ledger.restoreBudget(previous, in: dir)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self.refresh()
+                    self.onAlert?(Toast(symbol: ok ? "arrow.uturn.backward.circle.fill" : "exclamationmark.triangle.fill", tint: ok ? .calm : .warning,
+                                        title: ok ? "Token budget restored" : "Couldn't restore the budget",
+                                        subtitle: ok ? nil : "A new budget has been set since"))
+                }
+            }
+        }
+    }
 
     func refresh() {
         guard !reading else { return }

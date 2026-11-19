@@ -71,6 +71,10 @@ final class NotchState {
     var slide: Slide = .home
     /// The music tile's rectangle in the panel (top-left origin): sideways swipes there turn its own pages.
     @ObservationIgnored var musicFrame: CGRect = .zero
+    /// The Claude tile's rectangle, likewise (it pages between usage and budget settings).
+    @ObservationIgnored var claudeFrame: CGRect = .zero
+    /// Which page the Claude tile shows: "stats" or "budget".
+    var claudePage = "stats"
 
     /// Set by the controller: views call these instead of changing `mode` themselves.
     @ObservationIgnored var expandAction: () -> Void = {}
