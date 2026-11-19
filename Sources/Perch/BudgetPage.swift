@@ -14,13 +14,13 @@ struct BudgetPage: View {
 
     var body: some View {
         let b = claude.stats.budget
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text("BUDGET").label().help("The budget shared by every Claude Code session (token-meter's /token-budget all)")
                 Spacer(minLength: 0)
                 Text(summary(b)).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
             }
-            .frame(height: 16)
+            .frame(height: 14)
             row("TOKENS", presets: tokenPresets, label: { TokenFormat.short($0) }, current: b?.tokens,
                 help: "A token limit for every Claude Code session together. Click the lit one to remove it.",
                 custom: { claude.promptBudget(.tokens) }) { v in claude.setBudget(tokens: v == b?.tokens ? .remove : .set(v)) }
@@ -39,7 +39,7 @@ struct BudgetPage: View {
                     Text("Clear budget").font(.system(size: 11, weight: .semibold))
                 }
                 .foregroundStyle(.white.opacity(hasBudget ? 0.9 : 0.35))
-                .padding(.horizontal, 10).frame(height: 24)
+                .padding(.horizontal, 10).frame(height: 22)
                 .background(Capsule().fill(.white.opacity(hasBudget ? 0.12 : 0.05)))
             }
             .buttonStyle(PressScale())
@@ -76,7 +76,7 @@ struct BudgetPage: View {
             Chip(text: "…", lit: false, theme: settings.theme, help: "Another value") { custom() }
             Spacer(minLength: 0)
         }
-        .frame(height: 26)
+        .frame(height: 23)
         .help(help)
     }
 }

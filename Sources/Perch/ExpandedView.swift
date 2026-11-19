@@ -208,7 +208,6 @@ struct ClaudeTile: View {
     @Environment(ClaudeModel.self) private var claude
     @Environment(AppSettings.self) private var settings
     // `State` written out: the command-line SDK has no @State macro plugin.
-    private let _page = State(initialValue: "stats")
     @Environment(NotchState.self) private var state
     @Environment(\.snapshotMode) private var snapshot
 
@@ -239,16 +238,16 @@ struct ClaudeTile: View {
                     }
                     ScrollView(.horizontal) {
                         LazyHStack(spacing: 0) {
-                            statsPage(s, theme: theme).containerRelativeFrame(.horizontal).id("stats")
-                            BudgetPage().containerRelativeFrame(.horizontal).id("budget")
+                            statsPage(s, theme: theme).containerRelativeFrame([.horizontal, .vertical]).id("stats")
+                            BudgetPage().containerRelativeFrame([.horizontal, .vertical]).id("budget")
                         }
                         .scrollTargetLayout()
                     }
                     .scrollTargetBehavior(.paging)
                     .scrollIndicators(.never)
-                    .scrollPosition(id: Binding<String?>(get: { _page.wrappedValue }, set: { if let v = $0 { _page.wrappedValue = v } }))
-                    PageDots(pages: [("stats", "Usage"), ("budget", "Budget")], selected: _page.wrappedValue) { id in
-                        withAnimation(.notch) { _page.wrappedValue = id }
+                    .scrollPosition(id: Binding<String?>(get: { state.claudePage }, set: { if let v = $0 { state.claudePage = v } }))
+                    PageDots(pages: [("stats", "Usage"), ("budget", "Budget")], selected: state.claudePage) { id in
+                        withAnimation(.notch) { state.claudePage = id }
                     }
                     .offset(x: 2, y: 4)
                 }

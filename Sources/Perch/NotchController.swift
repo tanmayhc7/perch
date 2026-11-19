@@ -209,6 +209,7 @@ final class NotchController {
                         return f[i] == "-" ? .remove : (Ledger.parseAmount(f[i]).map { .set($0) } ?? .keep)
                     }
                     self.env.claude.setBudget(tokens: limit(0), usd: limit(1), windowHours: f.count > 2 ? Ledger.parseWindowHours(f[2]) : nil)
+                case _ where cmd.hasPrefix("claudepage:"): self.env.state.claudePage = String(cmd.dropFirst(11))
                 case "budgetclear": self.env.claude.clearBudget()
                 case "toastaction": self.env.state.toast?.action?()
                 case "budgetstate":

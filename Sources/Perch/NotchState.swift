@@ -73,6 +73,8 @@ final class NotchState {
     @ObservationIgnored var musicFrame: CGRect = .zero
     /// The Claude tile's rectangle, likewise (it pages between usage and budget settings).
     @ObservationIgnored var claudeFrame: CGRect = .zero
+    /// Which page the Claude tile shows: "stats" or "budget".
+    var claudePage = "stats"
 
     /// Set by the controller: views call these instead of changing `mode` themselves.
     @ObservationIgnored var expandAction: () -> Void = {}
