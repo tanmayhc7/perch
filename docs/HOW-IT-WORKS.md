@@ -172,8 +172,9 @@ Each does nothing until switched on, and the polling ones run only while the not
 | You turn on **Do Not Disturb during focus timer** | Adding two shortcuts in Shortcuts | To turn Do Not Disturb on and off for the timer |
 | Your wallpaper is in Desktop, Documents or Downloads, and you choose **Auto** | Files and Folders | To read the wallpaper file to pick colours |
 
-You can turn any of these off in **System Settings → Privacy & Security**. An update can make macOS ask for Calendar
-access again, because each release is signed afresh.
+You can turn any of these off in **System Settings → Privacy & Security**. Permissions carry over between updates because
+every release is signed with the same certificate (see [Signing](#signing-and-notarization)); the update that first
+switched to it (0.5.2) asks once more.
 
 ## Privacy
 
@@ -214,8 +215,24 @@ the temp folder. The daily check only sets "an update is available"; it never st
 
 ## Signing and notarization
 
-Releases are **ad-hoc signed and not notarized**, which is why the install script clears the quarantine flag. Notarizing
-needs a paid Apple Developer account. With one, the release steps become:
+**Stable identity, so permissions persist.** macOS ties permissions (Calendar, Automation…) to an app's code signature.
+Ad-hoc signing gives each build a signature of its own (the hash of that exact binary), so every update or reinstall looked
+like a new app and asked for Calendar access again. Since 0.5.2, releases are signed with one self-made certificate,
+**Perch Release Signing**, so every build has the same designated requirement,
+`identifier "io.github.tanmayhc7.perch" and certificate leaf = H"87fb…"`, and permissions carry over.
+
+- `scripts/build-app.sh` signs with that certificate when it is in the login keychain (or the identity named in
+  `PERCH_SIGN_IDENTITY`), and falls back to ad-hoc without it. Someone building from source gets an ad-hoc build and will be
+  asked again after each rebuild; that is expected.
+- The certificate is not trusted by Apple, so it changes nothing about Gatekeeper: releases are still **not notarized**,
+  which is why the install script clears the quarantine flag.
+- To make a certificate like it: a 20-year self-signed certificate with the *Code Signing* extended key usage
+  (`openssl req -x509 … -addext extendedKeyUsage=codeSigning`), exported as `.p12` and imported with
+  `security import cert.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign`.
+- **Keep the private key.** Losing it means the next release has a new identity and everyone is asked once more.
+  Back up the `.p12` somewhere private and never commit it.
+
+**Notarization** needs a paid Apple Developer account. With one, the release steps become:
 
 1. Sign with a Developer ID certificate and the hardened runtime:
    `codesign --force --options runtime --timestamp --sign "Developer ID Application: <Name> (<TEAMID>)" dist/Perch.app`
@@ -239,7 +256,8 @@ open dist/Perch.app
 ```
 
 `build-app.sh` builds arm64 and x86_64 slices, joins them with `lipo`, assembles the bundle outside the repo (a folder
-synced by iCloud can make `codesign` refuse it), draws the icon with the app itself (`Perch --icon`) and signs ad hoc.
+synced by iCloud can make `codesign` refuse it), draws the icon with the app itself (`Perch --icon`) and signs it (see
+[Signing](#signing-and-notarization)).
 Set `VERSION=x.y.z` to override the version taken from the latest git tag.
 
 ## Project layout
