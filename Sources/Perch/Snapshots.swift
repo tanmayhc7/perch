@@ -70,6 +70,18 @@ enum Snapshots {
         nestShot("nest-1", [], slide: 0)
         nestShot("nest-2", [], slide: 1)
         nestShot("nest-3", [], slide: 2)
+        do {
+            let env = sampleEnv(theme: .ember)
+            env.claude.stats.budget = LedgerBudget(tokens: 5_000_000, usd: 20, windowHours: 24)
+            let tile = Tile { BudgetPage() }.frame(width: 300, height: 154).notchEnvironment(env).environment(\.snapshotMode, true)
+                .padding(20).background(Color(red: 0.07, green: 0.06, blue: 0.08))
+            let r = ImageRenderer(content: tile)
+            r.scale = 3
+            if let img = r.nsImage, let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+               let png = rep.representation(using: .png, properties: [:]) {
+                try? png.write(to: dir.appendingPathComponent("budget.png"))
+            }
+        }
         for wp in SampleWallpaper.all {
             let img = wp.image()
             AutoPalette.shared.set(from: img)

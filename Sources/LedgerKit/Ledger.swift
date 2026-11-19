@@ -61,6 +61,12 @@ public struct LedgerSession: Sendable, Equatable, Identifiable {
     }
 }
 
+/// What to do with one limit of the shared budget (see `Ledger.updateBudget`).
+public enum BudgetLimit: Sendable, Equatable {
+    case keep, remove
+    case set(Double)
+}
+
 /// `budget.json`: a budget shared by every session over a rolling window.
 public struct LedgerBudget: Sendable, Equatable, Codable {
     public var tokens: Double?
@@ -93,6 +99,7 @@ public struct LedgerBudget: Sendable, Equatable, Codable {
     /// "5h", "1.5h", "30m".
     public var windowText: String {
         if windowHours < 1 { return "\(Int((windowHours * 60).rounded()))m" }
+        if windowHours >= 48, windowHours.truncatingRemainder(dividingBy: 24) == 0 { return "\(Int(windowHours / 24))d" }
         let r = (windowHours * 10).rounded() / 10
         return r == r.rounded() ? "\(Int(r))h" : String(format: "%.1fh", r)
     }
@@ -149,6 +156,84 @@ public enum Ledger {
     public static func readBudget(in dir: URL = defaultDirectory) -> LedgerBudget? {
         guard let data = try? Data(contentsOf: dir.appendingPathComponent("budget.json")) else { return nil }
         return try? JSONDecoder().decode(LedgerBudget.self, from: data)
+    }
+
+    /// Takes the token and dollar limits out of `budget.json`, the same as `/token-budget all off` does in Claude Code:
+    /// the window (and any other key in the file) stays. Every Claude Code session reads this file, so none has a budget
+    /// afterwards. Returns what the limits were, so they can be put back, or nil when there was nothing to clear.
+    public static func clearBudget(in dir: URL = defaultDirectory) -> LedgerBudget? {
+        let url = dir.appendingPathComponent("budget.json")
+        guard let data = try? Data(contentsOf: url),
+              let previous = try? JSONDecoder().decode(LedgerBudget.self, from: data),
+              previous.tokens != nil || previous.usd != nil,
+              var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        object.removeValue(forKey: "tokens")
+        object.removeValue(forKey: "usd")
+        guard write(object, to: url) else { return nil }
+        return previous
+    }
+
+    /// Puts limits taken out by `clearBudget` back (an undo). Leaves a limit set since then alone.
+    @discardableResult
+    public static func restoreBudget(_ previous: LedgerBudget, in dir: URL = defaultDirectory) -> Bool {
+        let url = dir.appendingPathComponent("budget.json")
+        var object = ((try? Data(contentsOf: url)).flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
+        if object["tokens"] != nil || object["usd"] != nil { return false }
+        if let t = previous.tokens { object["tokens"] = t }
+        if let u = previous.usd { object["usd"] = u }
+        if object["windowHours"] == nil { object["windowHours"] = previous.windowHours }
+        return write(object, to: url)
+    }
+
+    /// Changes the shared budget the way `/token-budget all …` does: each of the token and dollar limits can be kept,
+    /// removed or set, and the window changed. Anything else in the file stays. Creates the file if token-meter hasn't.
+    @discardableResult
+    public static func updateBudget(tokens: BudgetLimit = .keep, usd: BudgetLimit = .keep, windowHours: Double? = nil,
+                                    in dir: URL = defaultDirectory) -> Bool {
+        let url = dir.appendingPathComponent("budget.json")
+        var object = ((try? Data(contentsOf: url)).flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
+        func apply(_ key: String, _ change: BudgetLimit) -> Bool {
+            switch change {
+            case .keep: return true
+            case .remove: object.removeValue(forKey: key); return true
+            case .set(let v):
+                guard v.isFinite, v > 0, v <= 1e15 else { return false }
+                object[key] = v
+                return true
+            }
+        }
+        guard apply("tokens", tokens), apply("usd", usd) else { return false }
+        if let h = windowHours {
+            guard h.isFinite, h >= 1.0 / 60, h <= 24 * 31 else { return false }
+            object["windowHours"] = h
+        }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return write(object, to: url)
+    }
+
+    /// Reads `500k`, `1.5M`, `12,000`, `$5` and `5` the way token-meter does; nil when it isn't an amount.
+    public static func parseAmount(_ text: String) -> Double? {
+        let t = text.lowercased().filter { !"$,_ \t".contains($0) }
+        guard let r = t.range(of: #"^\d+(\.\d+)?[km]?$"#, options: .regularExpression) else { return nil }
+        let s = String(t[r])
+        let mult: Double = s.hasSuffix("k") ? 1e3 : s.hasSuffix("m") ? 1e6 : 1
+        guard let n = Double(s.trimmingCharacters(in: CharacterSet(charactersIn: "km"))), n > 0, n.isFinite else { return nil }
+        return n * mult
+    }
+
+    /// Reads a window such as `5h`, `1.5h`, `24h` or `7d` into hours; nil when it isn't one or is out of range.
+    public static func parseWindowHours(_ text: String) -> Double? {
+        let t = text.lowercased().trimmingCharacters(in: .whitespaces)
+        guard t.range(of: #"^\d+(\.\d+)?[hd]$"#, options: .regularExpression) != nil,
+              let n = Double(t.dropLast()) else { return nil }
+        let hours = n * (t.hasSuffix("d") ? 24 : 1)
+        return hours >= 1.0 / 60 && hours <= 24 * 31 ? hours : nil
+    }
+
+    /// Whole-file replace, so a Claude Code session reading it never sees half a file.
+    private static func write(_ object: [String: Any], to url: URL) -> Bool {
+        guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else { return false }
+        return (try? data.write(to: url, options: .atomic)) != nil
     }
 }
 

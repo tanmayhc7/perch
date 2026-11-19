@@ -201,6 +201,22 @@ final class NotchController {
                             menu.popUp(positioning: nil, at: NSPoint(x: g.midX, y: g.top - 400), in: nil)
                         }
                     }
+                case _ where cmd.hasPrefix("budgetset:"):
+                    // budgetset:<tokens>|<dollars>|<window>, each optional, e.g. budgetset:5M||24h  (a "-" removes a limit)
+                    let f = cmd.dropFirst(10).split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+                    func limit(_ i: Int) -> BudgetLimit {
+                        guard i < f.count, !f[i].isEmpty else { return .keep }
+                        return f[i] == "-" ? .remove : (Ledger.parseAmount(f[i]).map { .set($0) } ?? .keep)
+                    }
+                    self.env.claude.setBudget(tokens: limit(0), usd: limit(1), windowHours: f.count > 2 ? Ledger.parseWindowHours(f[2]) : nil)
+                case "budgetclear": self.env.claude.clearBudget()
+                case "toastaction": self.env.state.toast?.action?()
+                case "budgetstate":
+                    let b = self.env.claude.stats.budget
+                    let line = "budget tokens=\(b?.tokens.map { String($0) } ?? "-") usd=\(b?.usd.map { String($0) } ?? "-") window=\(b?.windowText ?? "-") toast=\(self.env.state.toast?.title ?? "-")\n"
+                    if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
+                        h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+                    }
                 case "menustate": NSLog("Perch menu: open=\(self.menuOpen) expanded=\(self.env.state.isExpanded)")
                 case "calsync": self.env.calendar.sync(force: true)
                 case "claudemodel":
@@ -288,7 +304,7 @@ final class NotchController {
             swipeFired = false
             // The music tile turns its own pages (Spotify, Apple Music, focus music).
             let p = CGPoint(x: e.locationInWindow.x, y: (panel.contentView?.bounds.height ?? 0) - e.locationInWindow.y)
-            swipeIgnored = env.state.musicFrame.contains(p) && env.state.slide == .home
+            swipeIgnored = (env.state.musicFrame.contains(p) || env.state.claudeFrame.contains(p)) && env.state.slide == .home
         }
         guard !swipeIgnored, !swipeFired else { return }
         // Follow the fingers whichever way "natural scrolling" is set.

@@ -24,7 +24,7 @@ Free · open source · macOS 14+ · Apple Silicon and Intel · no Dock icon, jus
 
 <table>
 <tr>
-<td align="center" width="50%"><img src="docs/images/expanded-ember.png" alt="Claude Code usage ring, tokens, cost, burn rate and the model in use"><br><b>Claude Code at a glance</b><br><sub>Tokens, cost, burn rate, budget left and the model in use. The notch glows while Claude works.</sub></td>
+<td align="center" width="50%"><img src="docs/images/expanded-ember.png" alt="Claude Code usage ring, tokens, cost, burn rate and the model in use"><br><b>Claude Code at a glance</b><br><sub>Tokens, cost, burn rate and the model in use. The notch glows while Claude works.</sub></td>
 <td align="center" width="50%"><img src="docs/images/answer.png" alt="A question typed into the notch and Claude's answer streaming in"><br><b>Ask Claude</b><br><sub>Type a question, get the answer, never leave your app.</sub></td>
 </tr>
 <tr>
@@ -34,6 +34,9 @@ Free · open source · macOS 14+ · Apple Silicon and Intel · no Dock icon, jus
 <tr>
 <td align="center"><img src="docs/images/drop.png" alt="Dragging a file onto the notch shows AirDrop and Shelf"><br><b>Drop files</b><br><sub>AirDrop them, or park them on the shelf for later.</sub></td>
 <td align="center"><img src="docs/images/shelf.png" alt="Files held on the shelf"><br><b>A shelf for files</b><br><sub>Drag them back out into any app.</sub></td>
+</tr>
+<tr>
+<td align="center" colspan="2"><img src="docs/images/budget.png" width="420" alt="The Claude tile's budget page: token, dollar and window options as chips"><br><b>Set your token budget</b><br><sub>Swipe the Claude tile left: pick a token limit, a dollar limit and a window, or clear it. It's the same budget Claude Code uses, so every session follows it.</sub></td>
 </tr>
 <tr>
 <td align="center" colspan="2"><img src="docs/images/focus-music.png" width="560" alt="A focus timer running with music playing"><br><b>Focus timer with its own music</b><br><sub>25, 50 or 5 minutes. Play a file or a YouTube link while it runs (ad-free with Brave), and optionally turn on Do Not Disturb.</sub></td>

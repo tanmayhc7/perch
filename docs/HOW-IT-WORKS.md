@@ -74,6 +74,26 @@ The **model name** is the one thing that comes from elsewhere: Perch opens the l
 transcript (`~/.claude/projects/*/<sessionId>.jsonl`) and takes the `message.model` of the newest assistant reply. It
 doesn't keep or show anything else from it. Results are cached per transcript.
 
+**Setting the budget.** Swiping the Claude tile left turns to a second page with the options of token-meter's
+all-sessions budget: a token limit, a dollar limit (either or both) and the window they count over (5h, 24h, 7d, or a
+value of your own, typed like `3M`, `$15` or `12h`, parsed the way token-meter parses them). Each choice edits
+`budget.json` in place (`Ledger.updateBudget`: whole-file atomic write, other keys kept, values checked), which is exactly
+what `/token-budget all …` writes, and every Claude Code session re-reads it. Two limits aren't offered because they
+aren't in a file Perch can safely write: a session's own budget and the burn-rate threshold live in Claude Code's private
+plugin store, so those stay with `/token-budget 500k` and `/token-budget rate 60k`. A caveat: token-meter's own
+pop-up warnings are remembered per session, so a session that already warned at 80% under the old budget may not warn again
+under the new one; Perch's own alerts do re-arm. The swipe over this tile turns its pages instead of changing the Nest
+slide, like the music tile. The usage page's ring shows the burn rate (counted tokens per minute, filling toward
+token-meter's 40k/min warning line); the budget's "% left" is on the budget page's header.
+
+**Clearing the budget.** The budget page ends with one **Clear budget** button.
+Claude Code has no call for another app to make, so Perch does what `/token-budget all off` does to the shared file: it
+asks first, then removes the `tokens` and `usd` limits from `~/.claude/token-meter/budget.json` (writing the whole file
+at once, and keeping the window and any other key). Every Claude Code session reads that file, so none has a budget
+afterwards; a session's own `/token-budget 500k` is stored by the plugin and isn't touched. A notice offers **Undo**,
+which puts the limits back unless a new budget was set in the meantime. A session's status line catches up at its next
+update.
+
 The glow around the notch, the live token count beside it, and the alerts (80% and 100% of budget, high burn rate,
 optionally a finished session) all come from the same stats.
 

@@ -104,6 +104,7 @@ struct SettingsMenu: View {
     @Environment(NotchState.self) private var state
     @Environment(Updater.self) private var updater
     @Environment(WidgetHub.self) private var widgets
+    @Environment(ClaudeModel.self) private var claude
     @Environment(\.snapshotMode) private var snapshot
 
     var body: some View {
@@ -206,6 +207,10 @@ struct TilesRow: View {
 struct ClaudeTile: View {
     @Environment(ClaudeModel.self) private var claude
     @Environment(AppSettings.self) private var settings
+    // `State` written out: the command-line SDK has no @State macro plugin.
+    private let _page = State(initialValue: "stats")
+    @Environment(NotchState.self) private var state
+    @Environment(\.snapshotMode) private var snapshot
 
     var body: some View {
         let s = claude.stats
@@ -222,7 +227,36 @@ struct ClaudeTile: View {
                     Button("Get token-meter") { NSWorkspace.shared.open(URL(string: "https://github.com/tanmayhc7/claude-token-meter")!) }
                         .buttonStyle(PillButtonStyle(theme: theme, prominent: true))
                 }
+            } else if snapshot {
+                statsPage(s, theme: theme)
             } else {
+                // Two pages: the stats, and (a swipe left) the budget settings.
+                ZStack(alignment: .bottomTrailing) {
+                    // Tells the slide swipe where this tile is, so a swipe here turns its pages instead.
+                    GeometryReader { geo in
+                        let frame = geo.frame(in: .global)
+                        Color.clear.onAppear { state.claudeFrame = frame }.onChange(of: frame) { _, f in state.claudeFrame = f }
+                    }
+                    ScrollView(.horizontal) {
+                        LazyHStack(spacing: 0) {
+                            statsPage(s, theme: theme).containerRelativeFrame(.horizontal).id("stats")
+                            BudgetPage().containerRelativeFrame(.horizontal).id("budget")
+                        }
+                        .scrollTargetLayout()
+                    }
+                    .scrollTargetBehavior(.paging)
+                    .scrollIndicators(.never)
+                    .scrollPosition(id: Binding<String?>(get: { _page.wrappedValue }, set: { if let v = $0 { _page.wrappedValue = v } }))
+                    PageDots(pages: [("stats", "Usage"), ("budget", "Budget")], selected: _page.wrappedValue) { id in
+                        withAnimation(.notch) { _page.wrappedValue = id }
+                    }
+                    .offset(x: 2, y: 4)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func statsPage(_ s: ClaudeStats, theme: Theme) -> some View {
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(alignment: .center, spacing: 14) {
                         gauge(s, theme: theme).frame(width: 78, height: 78)
@@ -256,30 +290,20 @@ struct ClaudeTile: View {
                     Spacer(minLength: 0)
                     sessions(s, theme: theme)
                 }
-            }
-        }
     }
 
+    /// The ring is the burn rate, against token-meter's warning line (40k counted tokens a minute); the budget has its own page.
     @ViewBuilder private func gauge(_ s: ClaudeStats, theme: Theme) -> some View {
         ZStack {
-            if let f = s.budgetUsedFraction, let left = s.budgetPercentLeft {
-                ProgressRing(progress: f, theme: theme, lineWidth: 7, warn: f >= 0.8)
-                VStack(spacing: -1) {
-                    Text("\(left)%")
-                        .font(.system(size: 17, weight: .semibold, design: .rounded).monospacedDigit()).foregroundStyle(.white)
-                    Text(f >= 1 ? "over" : "left").font(.system(size: 9.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
-                }
-            } else {
-                // No budget: the ring shows the burn rate against token-meter's warning line.
-                ProgressRing(progress: s.burnPerMinute / 40_000, theme: theme, lineWidth: 7, warn: s.burnPerMinute >= 40_000)
-                VStack(spacing: -1) {
-                    Text(TokenFormat.short(s.burnPerMinute))
-                        .font(.system(size: 16, weight: .semibold, design: .rounded).monospacedDigit()).foregroundStyle(.white)
-                    Text("tok/min").font(.system(size: 9.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
-                }
+            ProgressRing(progress: s.burnPerMinute / 40_000, theme: theme, lineWidth: 7, warn: s.burnPerMinute >= 40_000)
+            VStack(spacing: -1) {
+                Text(TokenFormat.short(s.burnPerMinute))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded).monospacedDigit()).foregroundStyle(.white)
+                Text("tok/min").font(.system(size: 9.5, weight: .medium)).foregroundStyle(.white.opacity(0.5))
             }
         }
-        .help(s.budgetRemainingText.map { "All-sessions budget: \($0)" } ?? "No all-sessions budget. Set one in Claude Code with /token-budget all 5M")
+        .help("Burn rate: counted tokens per minute over the last few minutes. The ring fills toward token-meter's warning line (40k/min)."
+              + (s.budgetRemainingText.map { "\nBudget: \($0). Swipe the tile left for the budget." } ?? "\nSwipe the tile left to set a budget."))
     }
 
     private func stat(_ label: String, _ value: String, warn: Bool = false) -> some View {
