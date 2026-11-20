@@ -47,8 +47,8 @@ enum NotchLayout {
 
     static func shoulder(expanded: Bool) -> CGFloat { expanded ? 14 : 6 }
 
-    static func hasEars(claude: ClaudeModel, timer: FocusTimer, calendar: CalendarModel, now: Date = Date()) -> Bool {
-        claude.stats.isResponding || timer.phase != .idle || meetingSoon(calendar, now: now) != nil
+    static func hasEars(claude: ClaudeModel, timer: FocusTimer, calendar: CalendarModel, recording: Bool = false, now: Date = Date()) -> Bool {
+        recording || claude.stats.isResponding || timer.phase != .idle || meetingSoon(calendar, now: now) != nil
     }
 
     /// The next meeting when it starts within 10 minutes (or is on now).
@@ -57,7 +57,7 @@ enum NotchLayout {
         return m
     }
 
-    static func shapeSize(state: NotchState, claude: ClaudeModel, timer: FocusTimer, calendar: CalendarModel, shelf: ShelfModel) -> CGSize {
+    static func shapeSize(state: NotchState, claude: ClaudeModel, timer: FocusTimer, calendar: CalendarModel, shelf: ShelfModel, recording: Bool = false) -> CGSize {
         let g = state.geometry
         let collapsedShoulder = shoulder(expanded: false)
         if state.isExpanded {
@@ -65,7 +65,7 @@ enum NotchLayout {
             if !shelf.items.isEmpty { h += gap + shelfHeight }
             return CGSize(width: expandedWidth, height: h)
         }
-        let ears = hasEars(claude: claude, timer: timer, calendar: calendar)
+        let ears = hasEars(claude: claude, timer: timer, calendar: calendar, recording: recording)
         var w = g.width + 2 * collapsedShoulder + (ears ? 2 * ear : 0)
         var h = g.height
         if state.toast != nil || state.dragHint {
@@ -76,6 +76,6 @@ enum NotchLayout {
     }
 
     static func shapeSize(_ env: AppEnvironment) -> CGSize {
-        shapeSize(state: env.state, claude: env.claude, timer: env.timer, calendar: env.calendar, shelf: env.shelf)
+        shapeSize(state: env.state, claude: env.claude, timer: env.timer, calendar: env.calendar, shelf: env.shelf, recording: env.capture.isRecording)
     }
 }

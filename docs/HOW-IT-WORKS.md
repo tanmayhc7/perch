@@ -51,7 +51,8 @@ flowchart LR
 | Ask Claude | Your own `claude` command (`claude -p`) | When you press Return |
 | Spotify and Apple Music | AppleScript, plus the apps' own track-change notifications | While the app is running |
 | AirDrop and shelf | `NSSharingService` (AirDrop sheet); the shelf stores file references | When you drop files |
-| Next meeting, Today's calendar | EventKit (the Calendar database on your Mac) | Every 30 s and on change |
+| Meeting countdown beside the notch, Today's calendar | EventKit (the Calendar database on your Mac) | Every 30 s and on change |
+| Screenshot and Record | macOS's own `screencapture` tool | When you press a button |
 | Focus timer, Do Not Disturb | Two signed Shortcuts, run with the `shortcuts` command | When a timer starts or ends |
 | Focus music | `AVAudioPlayer` (files); a hidden Brave or web view (YouTube) | While a focus timer runs |
 | Auto and Glass themes | The wallpaper file (`NSWorkspace.desktopImageURL`) | When the wallpaper changes |
@@ -123,8 +124,23 @@ While files are dragged anywhere, a hint slides out of the notch; dropping on th
 uses `NSSharingService(named: .sendViaAirDrop)`. The **shelf** only keeps references to your files (never copies or
 uploads them) and prunes ones that no longer exist.
 
+### Screenshot and Record
+The top-right tile of the Home slide has two buttons that run `/usr/sbin/screencapture`, so the files are exactly what the
+system's own shortcuts produce and land where the system saves them (the folder set in the Screenshot app, else the
+Desktop), named the way macOS names them (`Screenshot 2026-11-19 at 10.31.22.png`).
+
+- **Screenshot** closes the notch, then runs `screencapture -i`: drag for an area, Space for a window, Esc to cancel, hold
+  Control to copy to the clipboard instead. A notice offers **Show** (reveals the file in Finder).
+- **Record** runs `screencapture -v` on the main display and the button becomes a red **Stop** with the elapsed time; a
+  red dot and the time also show beside the closed notch. Stop sends the tool Control-C (SIGINT), which lets it finish the
+  file; quitting Perch does the same, so a recording is never left unplayable. No audio is recorded.
+- **Permission.** macOS needs Screen Recording allowed for Perch. Perch asks the first time a button is pressed
+  (`CGRequestScreenCaptureAccess`) and checks before every capture (`CGPreflightScreenCaptureAccess`), because without it
+  `screencapture` quietly returns a picture with only the wallpaper. Nothing is captured, and nothing is sent anywhere,
+  until you press a button.
+
 ### Calendar
-EventKit, with access requested only when you click **Show my calendar**. Perch reads every calendar on the Mac (iCloud,
+EventKit, with access requested only when you click **Show my calendar** (on the Today's calendar widget in the Nest). Perch reads every calendar on the Mac (iCloud,
 Google, Exchange… as added in System Settings → Internet Accounts), minus the ones you switch off under
 **⋯ → Calendars** (stored as a list of *hidden* calendar ids, so a calendar added later is included). The next meeting
 is the earliest non-declined event in the next 24 hours; the join link is found by a regular expression over the
@@ -188,7 +204,8 @@ Each does nothing until switched on, and the polling ones run only while the not
 | --- | --- | --- |
 | First time Spotify is open | Automation → Spotify | To read the current track and play, pause and skip |
 | First time Apple Music is open | Automation → Music | The same, for Apple Music |
-| You click **Show my calendar** | Calendars | To show your next meeting and today's agenda |
+| You click **Show my calendar** | Calendars | To show today's agenda, and the countdown beside the notch before a meeting |
+| You press **Screenshot** or **Record** | Screen Recording | To capture the screen; without it macOS would return a picture with only the wallpaper in it |
 | You turn on **Do Not Disturb during focus timer** | Adding two shortcuts in Shortcuts | To turn Do Not Disturb on and off for the timer |
 | Your wallpaper is in Desktop, Documents or Downloads, and you choose **Auto** | Files and Folders | To read the wallpaper file to pick colours |
 

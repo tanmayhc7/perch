@@ -36,6 +36,9 @@ Free · open source · macOS 14+ · Apple Silicon and Intel · no Dock icon, jus
 <td align="center"><img src="docs/images/shelf.png" alt="Files held on the shelf"><br><b>A shelf for files</b><br><sub>Drag them back out into any app.</sub></td>
 </tr>
 <tr>
+<td align="center" colspan="2"><img src="docs/images/capture.png" width="260" alt="Screenshot and Record buttons"><br><b>Screenshot and screen recording</b><br><sub>Two buttons on the first slide. Drag over an area to capture it, or hit Record and Stop. Files go where macOS saves screenshots.</sub></td>
+</tr>
+<tr>
 <td align="center" colspan="2"><img src="docs/images/budget.png" width="420" alt="The Claude tile's budget page: token, dollar and window options as chips"><br><b>Set your token budget</b><br><sub>Swipe the Claude tile left: pick a token limit, a dollar limit and a window, or clear it. It's the same budget Claude Code uses, so every session follows it.</sub></td>
 </tr>
 <tr>
@@ -102,7 +105,7 @@ and installs it for you. No Terminal needed. Turn the notice off in the menu if 
 ## Good to know
 
 - **Private by design.** Everything stays on your Mac. No analytics, no accounts, no server. Widgets only run once you switch them on.
-- **It asks before it touches anything:** calendars, Spotify and Apple Music control, and Do Not Disturb each ask the first time you use them.
+- **It asks before it touches anything:** calendars, Spotify and Apple Music control, screen recording (for the Screenshot and Record buttons) and Do Not Disturb each ask the first time you use them.
 - **Needs [token-meter](https://github.com/tanmayhc7/claude-token-meter)** (a Claude Code plugin) for the Claude numbers. The rest works without it.
 - Not notarized by Apple yet; the install line takes care of the usual "unidentified developer" warning.
 

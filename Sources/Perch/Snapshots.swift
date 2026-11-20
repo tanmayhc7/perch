@@ -76,6 +76,17 @@ enum Snapshots {
                 try? png.write(to: dir.appendingPathComponent("budget.png"))
             }
         }
+        do {
+            let env = sampleEnv(theme: .ember)
+            let tile = CaptureTile().frame(width: 162, height: 72).notchEnvironment(env).environment(\.snapshotMode, true)
+                .padding(20).background(Color(red: 0.07, green: 0.06, blue: 0.08))
+            let r = ImageRenderer(content: tile)
+            r.scale = 3
+            if let img = r.nsImage, let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+               let png = rep.representation(using: .png, properties: [:]) {
+                try? png.write(to: dir.appendingPathComponent("capture.png"))
+            }
+        }
         for wp in SampleWallpaper.all {
             let img = wp.image()
             AutoPalette.shared.set(from: img)
@@ -187,7 +198,7 @@ enum Snapshots {
         let state = NotchState(geometry: NotchGeometry(width: 185, height: 32, hasNotch: true, midX: 0, top: 0))
         let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)], persist: false),
                                  shelf: ShelfModel(), calendar: CalendarModel(defaults: UserDefaults(suiteName: "perch.snapshots")!), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(defaults: UserDefaults(suiteName: "perch.snapshots")!),
-                                 music: FocusMusic(defaults: UserDefaults(suiteName: "perch.snapshots")!), updater: Updater(), widgets: WidgetHub(defaults: UserDefaults(suiteName: "perch.snapshots")!))
+                                 music: FocusMusic(defaults: UserDefaults(suiteName: "perch.snapshots")!), updater: Updater(), widgets: WidgetHub(defaults: UserDefaults(suiteName: "perch.snapshots")!), capture: ScreenCapture())
         let now = Date()
         func req(_ minsAgo: Double, _ counted: Double) -> LedgerRequest {
             LedgerRequest(ts: now.addingTimeInterval(-minsAgo * 60), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, usd: counted / 220_000, counted: counted)

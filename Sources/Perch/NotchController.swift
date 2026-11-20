@@ -210,6 +210,22 @@ final class NotchController {
                     }
                     self.env.claude.setBudget(tokens: limit(0), usd: limit(1), windowHours: f.count > 2 ? Ledger.parseWindowHours(f[2]) : nil)
                 case _ where cmd.hasPrefix("claudepage:"): self.env.state.claudePage = String(cmd.dropFirst(11))
+                case _ where cmd.hasPrefix("capture:"):
+                    // capture:shot[:path]  full-screen screenshot, no crosshair   capture:rec[:path]  start recording   capture:stop
+                    let parts = cmd.dropFirst(8).split(separator: ":", maxSplits: 1).map(String.init)
+                    let path = parts.count > 1 ? URL(fileURLWithPath: parts[1]) : nil
+                    switch parts.first {
+                    case "fake": self.env.capture.standIn = path
+                    case "shot": self.env.capture.screenshot(interactive: false, to: path)
+                    case "rec": self.env.capture.startRecording(to: path)
+                    case "stop": self.env.capture.stopRecording()
+                    default: break
+                    }
+                case "capturestate":
+                    let line = "capture recording=\(self.env.capture.isRecording) selecting=\(self.env.capture.selecting) access=\(CGPreflightScreenCaptureAccess()) toast=\(self.env.state.toast?.title ?? "-")\n"
+                    if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
+                        h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+                    }
                 case "budgetclear": self.env.claude.clearBudget()
                 case "toastaction": self.env.state.toast?.action?()
                 case "budgetstate":

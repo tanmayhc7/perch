@@ -196,7 +196,7 @@ struct TilesRow: View {
             ClaudeTile().frame(width: 300)
             MusicTile()
             VStack(spacing: NotchLayout.gap) {
-                MeetingTile()
+                CaptureTile()
                 TimerTile()
             }
             .frame(width: 162)
@@ -610,58 +610,66 @@ struct PlayerPage: View {
     }
 }
 
-struct MeetingTile: View {
-    @Environment(CalendarModel.self) private var calendar
-    @Environment(AppSettings.self) private var settings
+/// Screenshot and Record, side by side: the Home slide's top-right tile. Both run macOS's own `screencapture` (see `ScreenCapture`).
+struct CaptureTile: View {
+    @Environment(ScreenCapture.self) private var capture
 
     var body: some View {
-        Tile(padding: 10) {
-            if !calendar.hasAccess {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("NEXT MEETING").label()
-                    if calendar.access == .notDetermined {
-                        Button("Show my calendar") { calendar.requestAccess() }.buttonStyle(PillButtonStyle(theme: settings.theme))
-                    } else {
-                        Button("Allow in Settings") {
-                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
-                        }.buttonStyle(PillButtonStyle(theme: settings.theme))
-                    }
+        Tile(padding: 8) {
+            HStack(spacing: 6) {
+                CaptureButton(symbol: "camera.viewfinder", title: "Screenshot", tint: nil,
+                              help: "Drag over an area to capture it. Space switches to a window, Esc cancels, hold Control to copy instead of save.") {
+                    capture.screenshot()
                 }
-            } else if let m = calendar.next {
-                TimelineView(.periodic(from: .now, by: 15)) { ctx in
-                    HStack(alignment: .top, spacing: 8) {
-                        Capsule().fill(Color(nsColor: m.color)).frame(width: 3)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(m.title).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-                            HStack(spacing: 6) {
-                                Text(Self.when(m, now: ctx.date)).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.55))
-                                    .lineLimit(1)
-                                Spacer(minLength: 0)
-                                if let url = m.joinURL {
-                                    Button("Join") { NSWorkspace.shared.open(url) }
-                                        .buttonStyle(PillButtonStyle(theme: settings.theme, prominent: m.start.timeIntervalSince(ctx.date) < 600))
-                                        .controlSize(.small)
-                                }
-                            }
-                        }
+                .opacity(capture.isRecording ? 0.4 : 1)
+                .disabled(capture.isRecording || capture.selecting)
+                if let since = capture.recordingSince {
+                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                        CaptureButton(symbol: "stop.fill", title: elapsed(ctx.date.timeIntervalSince(since)), tint: Color(red: 1, green: 0.36, blue: 0.36),
+                                      help: "Stop recording") { capture.stopRecording() }
                     }
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("NEXT MEETING").label()
-                    Text("Nothing in the next 24h").font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.6))
+                } else {
+                    CaptureButton(symbol: "record.circle", title: "Record", tint: nil,
+                                  help: "Record the main screen until you press Stop. The recording is saved where screenshots go.") {
+                        capture.toggleRecording()
+                    }
+                    .disabled(capture.selecting)
                 }
             }
         }
     }
 
-    static func when(_ m: CalendarModel.Meeting, now: Date) -> String {
-        let until = m.start.timeIntervalSince(now)
-        if until <= 0 { return "Now · \(max(1, Int(m.end.timeIntervalSince(now) / 60)))m left" }
-        if until < 3600 { return "in \(max(1, Int(until / 60))) min" }
-        let f = DateFormatter()
-        f.dateFormat = Calendar.current.isDateInToday(m.start) ? "'at' h:mm a" : "'tomorrow' h:mm a"
-        return f.string(from: m.start)
+    private func elapsed(_ t: TimeInterval) -> String {
+        let s = max(0, Int(t))
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+/// An icon over a label, as a button that lifts on hover.
+private struct CaptureButton: View {
+    var symbol: String
+    var title: String
+    var tint: Color?
+    var help: String
+    var action: () -> Void
+    private let _hover = State(initialValue: false)
+
+    var body: some View {
+        let hover = _hover.wrappedValue
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: symbol).font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(tint ?? .white.opacity(hover ? 1 : 0.85))
+                Text(title).font(.system(size: 10, weight: .semibold).monospacedDigit()).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(tint.map { $0.opacity(0.2) } ?? .white.opacity(hover ? 0.14 : 0.07)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScale())
+        .onHover { h in _hover.wrappedValue = h }
+        .help(help)
     }
 }
 

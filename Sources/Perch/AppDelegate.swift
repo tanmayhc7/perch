@@ -28,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Nor Do Not Disturb on with no timer to turn it off.
         env?.focus.finishBeforeQuit()
         env?.music.stopBeforeQuit()
+        // A recording in progress is finished, so its file plays.
+        env?.capture.stopBeforeQuit()
     }
 }
 
@@ -46,6 +48,7 @@ struct AppEnvironment {
     let music: FocusMusic
     let updater: Updater
     let widgets: WidgetHub
+    let capture: ScreenCapture
 
     var spotify: PlayerModel { media.players[0] }
 
@@ -53,7 +56,7 @@ struct AppEnvironment {
         let settings = AppSettings()
         let state = NotchState(geometry: NotchGeometry.detect().geometry)
         let env = AppEnvironment(state: state, settings: settings, claude: ClaudeModel(), media: MediaHub(players: [PlayerModel(source: .spotify), PlayerModel(source: .music)]),
-                                 shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(), music: FocusMusic(), updater: Updater(), widgets: WidgetHub())
+                                 shelf: ShelfModel(), calendar: CalendarModel(), timer: FocusTimer(), prompt: PromptModel(), focus: FocusLink(), music: FocusMusic(), updater: Updater(), widgets: WidgetHub(), capture: ScreenCapture())
         env.claude.onAlert = { [weak state] t in state?.push(t) }
         env.claude.finishAlertsEnabled = { settings.finishAlerts }
         env.calendar.onAlert = { [weak state] t in state?.push(t) }
@@ -65,6 +68,8 @@ struct AppEnvironment {
         env.widgets.isOn = { settings.isOn($0) }
         env.widgets.onAlert = { [weak state] t in state?.push(t) }
         env.widgets.start()
+        env.capture.onAlert = { [weak state] t in state?.push(t) }
+        env.capture.closeNotch = { [weak state] in state?.collapseAction() }
         ShelfModel.onProblem = { [weak state] t in state?.push(t) }
         env.focus.onAlert = { [weak state] t in state?.push(t) }
         env.focus.isEnabled = { settings.focusDND }
@@ -121,5 +126,6 @@ extension View {
             .environment(env.music)
             .environment(env.updater)
             .environment(env.widgets)
+            .environment(env.capture)
     }
 }
