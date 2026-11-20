@@ -13,9 +13,10 @@ struct NotchRootView: View {
     @Environment(FocusTimer.self) private var timer
     @Environment(CalendarModel.self) private var calendar
     @Environment(ShelfModel.self) private var shelf
+    @Environment(ScreenCapture.self) private var capture
 
     var body: some View {
-        let size = NotchLayout.shapeSize(state: state, claude: claude, timer: timer, calendar: calendar, shelf: shelf)
+        let size = NotchLayout.shapeSize(state: state, claude: claude, timer: timer, calendar: calendar, shelf: shelf, recording: capture.isRecording)
         let expanded = state.isExpanded
         let shape = NotchShape(shoulder: NotchLayout.shoulder(expanded: expanded),
                                bottom: expanded ? 28 : (state.toast != nil || state.dragHint ? 20 : 10))
@@ -164,10 +165,11 @@ struct CollapsedView: View {
     @Environment(FocusTimer.self) private var timer
     @Environment(CalendarModel.self) private var calendar
     @Environment(AppSettings.self) private var settings
+    @Environment(ScreenCapture.self) private var capture
 
     var body: some View {
         let g = state.geometry
-        let ears = NotchLayout.hasEars(claude: claude, timer: timer, calendar: calendar)
+        let ears = NotchLayout.hasEars(claude: claude, timer: timer, calendar: calendar, recording: capture.isRecording)
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 if ears {
@@ -205,7 +207,18 @@ struct CollapsedView: View {
     }
 
     @ViewBuilder private var rightEar: some View {
-        if timer.phase != .idle {
+        if let since = capture.recordingSince {
+            // Recording: a red dot and the time, until it's stopped (open the notch and press Stop).
+            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                HStack(spacing: 5) {
+                    let s = max(0, Int(ctx.date.timeIntervalSince(since)))
+                    Text(String(format: "%d:%02d", s / 60, s % 60))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit()).foregroundStyle(.white.opacity(0.9))
+                    Circle().fill(Color(red: 1, green: 0.36, blue: 0.36)).frame(width: 8, height: 8)
+                        .phaseAnimator([1.0, 0.35]) { v, o in v.opacity(o) } animation: { _ in .easeInOut(duration: 0.8) }
+                }
+            }
+        } else if timer.phase != .idle {
             TimelineView(.periodic(from: .now, by: 1)) { ctx in
                 HStack(spacing: 5) {
                     Text(FocusTimer.format(timer.remaining(at: ctx.date)))
