@@ -226,6 +226,18 @@ final class NotchController {
                     if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
                         h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
                     }
+                case _ where cmd.hasPrefix("dragprobe:"):
+                    // dragprobe:<path>  what the shelf's drag would carry for that file, written to PERCH_DEBUG_LOG
+                    let url = URL(fileURLWithPath: String(cmd.dropFirst(10)))
+                    let p = ShelfModel.dragProvider(for: url)
+                    p.loadItem(forTypeIdentifier: "public.file-url") { item, _ in
+                        // What a receiver reads: the file's address, and so its name.
+                        let received = (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) } ?? (item as? URL)
+                        let line = "dragprobe types=\(p.registeredTypeIdentifiers) receiver_name=\(received?.lastPathComponent ?? "-") same_file=\(received?.standardizedFileURL == url.standardizedFileURL)\n"
+                        if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
+                            h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+                        }
+                    }
                 case "budgetclear": self.env.claude.clearBudget()
                 case "toastaction": self.env.state.toast?.action?()
                 case "budgetstate":
