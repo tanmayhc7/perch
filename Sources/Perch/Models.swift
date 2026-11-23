@@ -4,8 +4,8 @@ import UniformTypeIdentifiers
 
 // MARK: - Shelf and AirDrop
 
-/// Files dropped on the notch, held until they're dragged out again or cleared.
-/// The shelf keeps references to the original files; it never copies or moves them.
+/// Files dropped on the notch, held until you remove them or clear the shelf (a drag out leaves them there too), or Perch
+/// quits. The shelf keeps references to the original files; it never copies or moves them.
 @MainActor @Observable
 final class ShelfModel {
     struct Item: Identifiable, Equatable {
@@ -42,20 +42,40 @@ final class ShelfModel {
     func add(_ urls: [URL]) {
         for u in urls.prefix(Self.limit) {
             let u = u.standardizedFileURL
-            guard !items.contains(where: { $0.url == u }), FileManager.default.fileExists(atPath: u.path) else { continue }
+            // No look at the disk here: it came from a drop, so it exists, and asking about a file in Desktop, Documents or
+            // Downloads can wait on a macOS permission prompt, with the notch frozen meanwhile.
+            guard !items.contains(where: { $0.url == u }) else { continue }
             items.append(Item(url: u))
         }
         if items.count > Self.limit { items.removeFirst(items.count - Self.limit) }
     }
 
-    /// Drops files that were deleted or moved since they were shelved.
+    /// Whether the file is certainly gone: macOS says there is no such file. Not "can't tell": a protected folder (Desktop,
+    /// Documents, Downloads…) answers an app that hasn't been allowed in as if the file were missing, and a shelf that
+    /// believed it emptied itself a visit after files were dropped.
+    nonisolated static func isGone(_ url: URL) -> Bool {
+        do {
+            _ = try url.checkResourceIsReachable()
+            return false
+        } catch let error as NSError {
+            guard error.domain == NSCocoaErrorDomain else { return false }
+            return error.code == NSFileReadNoSuchFileError || error.code == NSFileNoSuchFileError
+        }
+    }
+
+    /// Drops files that were deleted or moved since they were shelved. The look at the disk happens off the main thread,
+    /// because a first look at a protected folder can wait on a macOS permission prompt.
     func pruneMissing() {
-        let kept = items.filter { FileManager.default.fileExists(atPath: $0.url.path) }
-        if kept.count != items.count { items = kept }
+        let checking = items.map { ($0.id, $0.url) }
+        guard !checking.isEmpty else { return }
+        DispatchQueue.global(qos: .utility).async {
+            let gone = Set(checking.filter { Self.isGone($0.1) }.map(\.0))
+            guard !gone.isEmpty else { return }
+            DispatchQueue.main.async { MainActor.assumeIsolated { self.items.removeAll { gone.contains($0.id) } } }
+        }
     }
 
     func airDropAll() {
-        pruneMissing()
         Self.airDrop(items.map(\.url))
     }
 
@@ -66,7 +86,7 @@ final class ShelfModel {
     @MainActor static var onProblem: ((Toast) -> Void)?
 
     static func airDrop(_ urls: [URL]) {
-        let urls = urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+        let urls = urls.filter { !isGone($0) }
         guard !urls.isEmpty else {
             onProblem?(Toast(symbol: "questionmark.folder", tint: .warning, title: "Those files are gone", subtitle: "They were moved or deleted"))
             return

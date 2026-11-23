@@ -122,7 +122,11 @@ The two share one tile (a horizontal paging scroll view); the focus music adds a
 ### Drop zone and shelf
 While files are dragged anywhere, a hint slides out of the notch; dropping on the notch shows the targets. **AirDrop**
 uses `NSSharingService(named: .sendViaAirDrop)`. The **shelf** only keeps references to your files (never copies or
-uploads them) and prunes ones that no longer exist. Dragging an item back out carries the file's own address
+uploads them). Entries stay until you remove them, clear the shelf, or Perch quits (the list is in memory only); dragging a
+file out leaves it on the shelf. At most 60 are kept. Each time the notch opens, entries whose file is *certainly* gone are
+dropped, checked off the main thread: only a "no such file" answer counts, because a protected folder (Desktop, Documents,
+Downloads) answers an app that hasn't been allowed in as if the file were missing, and treating that as "gone" made the shelf
+empty itself a visit after files were dropped. Dragging an item back out carries the file's own address
 (like a drag out of Finder), so the copy keeps its exact name; `NSItemProvider(contentsOf:)` would offer the file's contents
 with no name, and the receiver would invent one.
 
@@ -207,6 +211,7 @@ Each does nothing until switched on, and the polling ones run only while the not
 | First time Spotify is open | Automation → Spotify | To read the current track and play, pause and skip |
 | First time Apple Music is open | Automation → Music | The same, for Apple Music |
 | You click **Show my calendar** | Calendars | To show today's agenda, and the countdown beside the notch before a meeting |
+| Perch first checks a shelved file in Desktop, Documents or Downloads | Files and Folders | To tell whether it's still there; if you say No, the files simply stay on the shelf |
 | You press **Screenshot** or **Record** | Screen Recording | To capture the screen; without it macOS would return a picture with only the wallpaper in it |
 | You turn on **Do Not Disturb during focus timer** | Adding two shortcuts in Shortcuts | To turn Do Not Disturb on and off for the timer |
 | Your wallpaper is in Desktop, Documents or Downloads, and you choose **Auto** | Files and Folders | To read the wallpaper file to pick colours |
