@@ -979,7 +979,7 @@ private struct ShelfItemActions: ViewModifier {
             content
         } else {
             content
-                .onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() }
+                .onDrag { ShelfModel.dragProvider(for: item.url) }
                 .help(item.url.path)
                 .contextMenu {
                     Button("Open") { NSWorkspace.shared.open(item.url) }

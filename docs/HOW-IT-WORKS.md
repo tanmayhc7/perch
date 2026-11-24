@@ -122,7 +122,9 @@ The two share one tile (a horizontal paging scroll view); the focus music adds a
 ### Drop zone and shelf
 While files are dragged anywhere, a hint slides out of the notch; dropping on the notch shows the targets. **AirDrop**
 uses `NSSharingService(named: .sendViaAirDrop)`. The **shelf** only keeps references to your files (never copies or
-uploads them) and prunes ones that no longer exist.
+uploads them) and prunes ones that no longer exist. Dragging an item back out carries the file's own address
+(like a drag out of Finder), so the copy keeps its exact name; `NSItemProvider(contentsOf:)` would offer the file's contents
+with no name, and the receiver would invent one.
 
 ### Screenshot and Record
 The top-right tile of the Home slide has two buttons that run `/usr/sbin/screencapture`, so the files are exactly what the

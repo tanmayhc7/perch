@@ -80,6 +80,15 @@ final class ShelfModel {
         service.perform(withItems: urls)
     }
 
+    /// What a drag out of the shelf carries: the file's own address, nothing else, like a drag out of Finder. The receiver
+    /// copies the real file under its real name. `NSItemProvider(contentsOf:)` offered the file's *contents* first, with no
+    /// name, and the receiver then made one up ("PDF document.pdf", or a temporary name).
+    static func dragProvider(for url: URL) -> NSItemProvider {
+        let provider = NSItemProvider(object: url as NSURL)
+        provider.suggestedName = url.deletingPathExtension().lastPathComponent
+        return provider
+    }
+
     /// File URLs from a SwiftUI drop.
     static func loadURLs(_ providers: [NSItemProvider], done: @escaping @MainActor ([URL]) -> Void) {
         let group = DispatchGroup()
