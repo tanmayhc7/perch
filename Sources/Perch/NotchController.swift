@@ -238,6 +238,35 @@ final class NotchController {
                             h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
                         }
                     }
+                case "shelftest":
+                    // Development: what the shelf does when a file stays, one is deleted, and one sits in a folder nobody may
+                    // open (how a protected folder looks to an app that isn't allowed in).
+                    let fm = FileManager.default
+                    let dir = fm.temporaryDirectory.appendingPathComponent("perch-shelftest-\(UUID().uuidString)")
+                    let locked = dir.appendingPathComponent("locked", isDirectory: true)
+                    try? fm.createDirectory(at: locked, withIntermediateDirectories: true)
+                    let here = dir.appendingPathComponent("here.txt"), deleted = dir.appendingPathComponent("deleted.txt")
+                    let inside = locked.appendingPathComponent("unreadable.txt")
+                    for f in [here, deleted, inside] { try? "x".write(to: f, atomically: true, encoding: .utf8) }
+                    self.env.shelf.clear()
+                    self.env.shelf.add([here, deleted, inside])
+                    let onShelf = self.env.shelf.items.count
+                    try? fm.removeItem(at: deleted)
+                    try? fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+                    let direct = "present_isGone=\(ShelfModel.isGone(here)) deleted_isGone=\(ShelfModel.isGone(deleted)) unreadable_isGone=\(ShelfModel.isGone(inside))"
+                    self.env.shelf.pruneMissing()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        MainActor.assumeIsolated {
+                            let left = self.env.shelf.items.map(\.name).sorted()
+                            let line = "shelftest added=\(onShelf) \(direct) after_prune=\(left)\n"
+                            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+                            try? fm.removeItem(at: dir)
+                            self.env.shelf.clear()
+                            if let path = ProcessInfo.processInfo.environment["PERCH_DEBUG_LOG"], let h = FileHandle(forWritingAtPath: path) ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path) }() {
+                                h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+                            }
+                        }
+                    }
                 case "budgetclear": self.env.claude.clearBudget()
                 case "toastaction": self.env.state.toast?.action?()
                 case "budgetstate":
